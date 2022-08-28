@@ -25,4 +25,11 @@ DATABASE_URL=postgres://user:password@localhost:5432 npm run migrate up
 
 Set NODE_RPC_URL in /src/constants.ts to a Bananode RPC url.
 
+# Start server
+
+```
+npm start
+```
+
+
 # Check local_commands.txt for RPC calls
