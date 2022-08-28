@@ -20,6 +20,79 @@ const express = require('express');
 const app = express();
 const port = 1919;
 
+const pg = require('pg');
+const pgPool = new pg.Pool();
+
+// CHECK DB CACHE
+app.get('/owner_nfts', async (req, res) => {
+  try {
+    const owner: TAccount = req.query['owner'];
+    const pgRes = await pgPool.query(`
+      SELECT owner_account.address AS owner_address,
+             supply_blocks.metadata_representative AS metadata_representative,
+             supply_blocks.supply_block_hash AS supply_block_hash,
+             supply_blocks.issuer AS issuer,
+             nfts.asset_representative AS asset_representative,
+             nfts.mint_block_hash AS mint_block_hash,
+             nfts.mint_number AS mint_number
+      FROM nfts
+      INNER JOIN supply_blocks ON nfts.supply_block_id = supply_blocks.id
+      INNER JOIN accounts AS owner_account ON nfts.owner_id = account.id;
+    `).catch((error) => { throw(error) });
+
+    const nfts = pgRes.rows.map((row: any) => {
+      return {
+        owner:                          row.owner_address,
+        metadata_representative:        row.metadata_representative,
+        supply_block_hash:              row.supply_block_hash,
+        issuer:                         row.issuer,
+        asset_representative:           row.asset_representative,
+        mint_block_hash:                row.mint_block_hash,
+        mint_number:                    row.mint_number
+      };
+    });
+
+    const reponse: string = JSON.stringify({
+      owner: owner,
+      nfts: nfts
+    });
+
+    res.send(reponse);
+  } catch (error) {
+    res.send(JSON.stringify({
+      status: 'error',
+      error: error.toString()
+    }));
+  }
+  console.log('\n');
+});
+
+// CHECK DB CACHE
+app.get('/account_supply_blocks', async (req, res) => {
+  try {
+    
+  } catch (error) {
+    res.send(JSON.stringify({
+      status: 'error',
+      error: error.toString()
+    }));
+  }
+  console.log('\n');
+});
+
+// CHECK DB CACHE
+app.get('/account_mints', async (req, res) => {
+  try {
+    
+  } catch (error) {
+    res.send(JSON.stringify({
+      status: 'error',
+      error: error.toString()
+    }));
+  }
+  console.log('\n');
+});
+
 // TRACE
 app.get('/supply_blocks', async (req, res) => {
   try {
