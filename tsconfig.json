@@ -1,0 +1,11 @@
+{
+  "compilerOptions": {
+    "removeComments": false,
+    "sourceMap": true,
+    "target": "ES2019",
+    "outDir": "dist",
+    "types": ["node", "mocha"],
+    "declaration": true
+  },
+  "include": ["src/**/*.ts"]
+}
