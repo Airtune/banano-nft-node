@@ -14,7 +14,8 @@
   "dependencies": {
     "@bananocoin/bananojs": "^2.6.1",
     "async-mutex": "^0.3.2",
-    "banano-nft-crawler": "^1.0.11",
+    "banano-nft-crawler": "^1.1.6",
+    "dotenv": "^16.0.3",
     "express": "^4.18.1",
     "nano-account-crawler": "^1.0.19",
     "nano-ipfs": "^1.0.4",

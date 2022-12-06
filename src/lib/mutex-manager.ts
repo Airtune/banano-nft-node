@@ -31,3 +31,5 @@ export class MutexManager {
     }
   }
 }
+
+export const mainMutexManager = new MutexManager();

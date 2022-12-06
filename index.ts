@@ -1,3 +1,6 @@
+import * as dotenv from 'dotenv' // see https://github.com/motdotla/dotenv#how-do-i-use-dotenv-with-import
+dotenv.config();
+
 // banano-nft-crawler
 import { SupplyBlocksCrawler } from 'banano-nft-crawler/dist/supply-blocks-crawler';
 import { MintBlocksCrawler } from 'banano-nft-crawler/dist/mint-blocks-crawler';
@@ -8,13 +11,24 @@ import { getBlock } from 'banano-nft-crawler/dist/lib/get-block';
 import { bananoIpfs } from 'banano-nft-crawler/dist/lib/banano-ipfs';
 
 // src
-import { bananode } from './src/bananode';
+import { CRAWL_UNDISCOVERED_CHANGE_INTERVAL, CRAWL_KNOWN_PENDING_INTERVAL } from './src/constants';
 import { parseSupplyRepresentative } from "banano-nft-crawler/dist/block-parsers/supply";
+import { get_issuers } from './src/get-issuers';
+import { get_nfts } from './src/get-nfts';
+import { crawlIssuer } from "./src/crawl-issuer";
+import { crawlNFT, crawlNFTFromMintBlockHash } from "./src/crawl-nft";
+
 
 // Typescript types and interfaces
-import { TAccount, TBlockHash } from 'banano-nft-crawler/dist/types/banano';
-import { INanoBlock } from 'nano-account-crawler/dist/nano-interfaces';
+import { INanoBlock, TAccount, TBlockHash } from 'nano-account-crawler/dist/nano-interfaces';
 import { IAssetBlock } from 'banano-nft-crawler/dist/interfaces/asset-block';
+
+import { traceAssetChain } from './src/crawler/trace-asset-chain';
+import { traceAssetFrontier } from './src/crawler/trace-asset-frontier';
+import { traceAssetBlockAtHeight } from './src/crawler/trace-asset-block-at-height';
+import { traceSupplyBlocks } from './src/crawler/trace-supply-blocks';
+
+//import { createAccount, createOrUpdateAccount } from './src/scan-and-update-supply-blocks';
 
 const express = require('express');
 const app = express();
@@ -23,29 +37,60 @@ const port = 1919;
 const pg = require('pg');
 const pgPool = new pg.Pool();
 
-// CHECK DB CACHE
+// nfts that has new blocks that are not yet crawled
+const mintBlockHashesForNFTsPendingCrawl: TBlockHash[] = [];
+// mints that have been discovered but not yet crawled
+const mintBlockHashesForPendingMints: TBlockHash[] = [];
+
+pgPool.on('error', (err, client) => {
+  console.error('Unexpected error on idle client', err);
+  process.exit(-1);
+});
+
+const BANANODE_RPC_URL = process.env.BANANODE_RPC_URL;
+if (typeof BANANODE_RPC_URL !== 'string') { throw Error('Environment variable BANANODE_RPC_URL must be set.'); }
+// TODO: check bananode is available
+
+import { NanoNode } from "nano-account-crawler/dist/nano-node";
+const fetch = require('node-fetch');
+export const bananode = new NanoNode(BANANODE_RPC_URL, fetch);
+
+const catchAndRespondWithError = async (res, fn) => {
+  try {
+    await fn();
+  } catch(error) {
+    res.send(JSON.stringify({
+      status: 'error',
+      error: error.toString(),
+      stack: error.stack || error.stacktrace
+    }));
+  }
+  console.log('\n');
+}
+
 app.get('/owner_nfts', async (req, res) => {
   try {
-    const owner: TAccount = req.query['owner'];
+    const owner_address: TAccount = req.query['owner'];
     const pgRes = await pgPool.query(`
       SELECT owner_account.address AS owner_address,
              supply_blocks.metadata_representative AS metadata_representative,
              supply_blocks.supply_block_hash AS supply_block_hash,
-             supply_blocks.issuer AS issuer,
+             issuer_account.address AS issuer_address,
              nfts.asset_representative AS asset_representative,
              nfts.mint_block_hash AS mint_block_hash,
              nfts.mint_number AS mint_number
       FROM nfts
       INNER JOIN supply_blocks ON nfts.supply_block_id = supply_blocks.id
-      INNER JOIN accounts AS owner_account ON nfts.owner_id = account.id;
+      INNER JOIN accounts AS issuer_account ON supply_blocks.issuer_id = accounts.id
+      INNER JOIN accounts AS owner_account ON nfts.owner_id = accounts.id;
     `).catch((error) => { throw(error) });
 
     const nfts = pgRes.rows.map((row: any) => {
       return {
-        owner:                          row.owner_address,
+        owner_address:                  row.owner_address,
         metadata_representative:        row.metadata_representative,
         supply_block_hash:              row.supply_block_hash,
-        issuer:                         row.issuer,
+        issuer_address:                 row.issuer_address,
         asset_representative:           row.asset_representative,
         mint_block_hash:                row.mint_block_hash,
         mint_number:                    row.mint_number
@@ -53,7 +98,7 @@ app.get('/owner_nfts', async (req, res) => {
     });
 
     const reponse: string = JSON.stringify({
-      owner: owner,
+      owner: owner_address,
       nfts: nfts
     });
 
@@ -67,63 +112,19 @@ app.get('/owner_nfts', async (req, res) => {
   console.log('\n');
 });
 
-// CHECK DB CACHE
-app.get('/account_supply_blocks', async (req, res) => {
-  try {
-    
-  } catch (error) {
-    res.send(JSON.stringify({
-      status: 'error',
-      error: error.toString()
-    }));
-  }
-  console.log('\n');
-});
-
-// CHECK DB CACHE
-app.get('/account_mints', async (req, res) => {
-  try {
-    
-  } catch (error) {
-    res.send(JSON.stringify({
-      status: 'error',
-      error: error.toString()
-    }));
-  }
-  console.log('\n');
-});
-
-// TRACE
-app.get('/supply_blocks', async (req, res) => {
+app.get('/get_supply_blocks', async (req, res) => {
   try {
     const issuer: TAccount = req.query['issuer'] as TAccount;
-
-    const supplyBlocksCrawler = new SupplyBlocksCrawler(issuer);
-    const supplyBlocks = await supplyBlocksCrawler.crawl(bananode).catch((error) => { throw(error) });
-
-    let supplyBlocksResponse: object[] = [];
+    const { supplyBlocks, crawlerHead, crawlerHeadHeight } = await traceSupplyBlocks(bananode, issuer);
 
     for (let i = 0; i < supplyBlocks.length; i++) {
-      const supplyBlock: INanoBlock          = supplyBlocksCrawler.supplyBlocks[i];
-      const metadataRepresentative: TAccount = supplyBlocksCrawler.metadataRepresentatives[i];
-
-      const supplyRepresentative: TAccount = supplyBlock.representative as TAccount;
-      const { version, maxSupply } = parseSupplyRepresentative(supplyRepresentative);
-      const ipfsCid = bananoIpfs.accountToIpfsCidV0(metadataRepresentative);
-
-      supplyBlocksResponse.push({
-        supply_block_hash: supplyBlock.hash,
-        supply_block_height: supplyBlock.height,
-        metadata_representative: metadataRepresentative,
-        ipfs_cid: ipfsCid,
-        max_supply: maxSupply.toString(),
-        version: version
-      })
+      const supplyBlock = supplyBlocks[i];
+      
     }
 
     const reponse: string = JSON.stringify({
       issuer: issuer,
-      supply_blocks: supplyBlocksResponse
+      supply_blocks: supplyBlocks
     });
 
     res.send(reponse);
@@ -136,8 +137,7 @@ app.get('/supply_blocks', async (req, res) => {
   console.log('\n');
 });
 
-// TRACE
-app.get('/mint_blocks', async (req, res) => {
+app.get('/get_mint_blocks', async (req, res) => {
   try {
     const issuer: TAccount = req.query['issuer'] as TAccount;
     const supplyBlockHash: TBlockHash = req.query['supply_block_hash'] as TBlockHash;
@@ -157,7 +157,6 @@ app.get('/mint_blocks', async (req, res) => {
     }
 
     const reponse: string = JSON.stringify({
-
       mints: mints
     });
 
@@ -173,22 +172,14 @@ app.get('/mint_blocks', async (req, res) => {
 
 // TRACE
 app.get('/get_asset_frontier', async (req, res) => {
-  try {
-    // TODO: validate params
+  catchAndRespondWithError(res, async () => {
+    // TODO: validate params !!!
     const issuer: TAccount = req.query['issuer'] as TAccount;
     const mintBlockHash: TBlockHash = req.query['mint_block_hash'] as TBlockHash;
 
-    console.log(`/get_asset_frontier\nissuer: ${issuer}\nmint_block_hash: ${mintBlockHash}`);
-    const mintBlock: (INanoBlock | undefined) = await getBlock(bananode, issuer, mintBlockHash).catch((error) => { throw(error) });
-    if (mintBlock == undefined) {
-      throw Error(`MintBlockError: Unabled to find block with hash: ${mintBlockHash}`);
-    }
-    const assetCrawler = new AssetCrawler(issuer, mintBlock);
-    await assetCrawler.crawl(bananode);
-    const frontier: IAssetBlock = assetCrawler.frontier;
-
+    const frontier = await traceAssetFrontier(bananode, issuer, mintBlockHash).catch((error) => { throw(error); });
     const reponse: string = JSON.stringify({
-      block_hash: frontier.nanoBlock.hash,
+      block_hash: frontier.block_hash,
       account:    frontier.account,
       owner:      frontier.owner,
       locked:     frontier.locked,
@@ -197,34 +188,20 @@ app.get('/get_asset_frontier', async (req, res) => {
     });
 
     res.send(reponse);
-  } catch(error) {
-    res.send(JSON.stringify({
-      status: 'error',
-      error: error.toString()
-    }));
-  }
-  console.log('\n');
+  });
 });
 
-// TRACE
 app.get('/get_asset_at_height', async (req, res) => {
-  try {
-    // TODO: validate params
+  catchAndRespondWithError(res, async () => {
+    // TODO: validate params !!!
     const issuer: TAccount          = req.query['issuer'] as TAccount;
     const mintBlockHash: TBlockHash = req.query['mint_block_hash'] as TBlockHash;
     const height: number            = parseInt(req.query['height']);
 
-    console.log(`/get_asset_at_height\nissuer: ${issuer}\nmint_block_hash: ${mintBlockHash}\nheight: ${height}`);
-    const mintBlock: (INanoBlock | undefined) = await getBlock(bananode, issuer, mintBlockHash).catch((error) => { throw(error) });
-    if (mintBlock == undefined) {
-      throw Error(`MintBlockError: Unabled to find block with hash: ${mintBlockHash}`);
-    }
-    const assetCrawler = new AssetCrawler(issuer, mintBlock);
-    await assetCrawler.crawl(bananode);
-    const assetBlock: IAssetBlock = assetCrawler.assetChain[height];
+    const assetBlock = await traceAssetBlockAtHeight(bananode, issuer, mintBlockHash, height).catch((error) => { throw(error); });
 
     const reponse: string = JSON.stringify({
-      block_hash: assetBlock.nanoBlock.hash,
+      block_hash: assetBlock.block_hash,
       account:    assetBlock.account,
       owner:      assetBlock.owner,
       locked:     assetBlock.locked,
@@ -233,36 +210,22 @@ app.get('/get_asset_at_height', async (req, res) => {
     });
 
     res.send(reponse);
-  } catch(error) {
-    res.send(JSON.stringify({
-      status: 'error',
-      error: error.toString()
-    }));
-  }
-  console.log('\n');
+  });
 });
 
-// TRACE
 app.get('/get_asset_chain', async (req, res) => {
-  try {
-    // TODO: validate params
+  catchAndRespondWithError(res, async () => {
+    // TODO: validate params !!!
     const issuer: TAccount          = req.query['issuer'] as TAccount;
     const mintBlockHash: TBlockHash = req.query['mint_block_hash'] as TBlockHash;
 
-    console.log(`/get_asset_chain\nissuer: ${issuer}\nmint_block_hash: ${mintBlockHash}`);
-    const mintBlock: (INanoBlock | undefined) = await getBlock(bananode, issuer, mintBlockHash).catch((error) => { throw(error) });
-    if (mintBlock == undefined) {
-      throw Error(`MintBlockError: Unabled to find block with hash: ${mintBlockHash}`);
-    }
-    const assetCrawler = new AssetCrawler(issuer, mintBlock);
-    await assetCrawler.crawl(bananode);
-
+    const assetCrawler = await traceAssetChain(bananode, issuer, mintBlockHash).catch((error) => { throw(error); });
     const assetChain = assetCrawler.assetChain.map((assetBlock: IAssetBlock) => {
       return {
         account:    assetBlock.account,
         owner:      assetBlock.owner,
         locked:     assetBlock.locked,
-        block_hash: assetBlock.nanoBlock.hash,
+        block_hash: assetBlock.block_hash,
         state:      assetBlock.state,
         type:       assetBlock.type
       };
@@ -273,16 +236,69 @@ app.get('/get_asset_chain', async (req, res) => {
     });
 
     res.send(reponse);
-  } catch(error) {
-    res.send(JSON.stringify({
-      status: 'error',
-      error: error.toString()
-    }));
-  }
-  console.log('\n');
+  });
 });
 
-app.listen(port, () => {
+const catchUndiscoveredMints = async () => {
+  const issuers = await get_issuers();
+  for (let i = 0; i < issuers.length; i++) {
+    const issuer = issuers[i];
+    await crawlIssuer(pgPool, bananode, issuer).catch((error) => { throw(error); });
+  }
+}
+
+const catchUndiscoveredNFTUpdates = async () => {
+  const nfts = await get_nfts();
+  for (let i = 0; i < nfts.length; i++) {
+    const nft = nfts[i];
+    await crawlNFT(pgPool, bananode, nft);
+  }
+}
+
+const updateNFTsPendingCrawl = async () => {
+  for (let i = 0; i < mintBlockHashesForNFTsPendingCrawl.length; i++) {
+    const mintBlockHash = mintBlockHashesForNFTsPendingCrawl[i];
+    await crawlNFTFromMintBlockHash(pgPool, bananode, mintBlockHash);
+  }
+
+  // clear the list
+  mintBlockHashesForNFTsPendingCrawl.splice(0, mintBlockHashesForNFTsPendingCrawl.length);
+}
+
+const updateMintsPendingCrawl = async () => {
+  for (let i = 0; i < mintBlockHashesForNFTsPendingCrawl.length; i++) {
+    const mintBlockHash = mintBlockHashesForNFTsPendingCrawl[i];
+    await crawlNFTFromMintBlockHash(pgPool, bananode, mintBlockHash);
+  }
+
+  // clear the list
+  mintBlockHashesForPendingMints.splice(0, mintBlockHashesForNFTsPendingCrawl.length);
+}
+
+const catchUndiscoveredUpdatesLoop = async () => {
+  console.log("catchUndiscoveredUpdatesLoop...");
+  await catchUndiscoveredNFTUpdates().catch((error) => { throw(error); });
+  await catchUndiscoveredMints().catch((error) => { throw(error); });
+  await catchUndiscoveredNFTUpdates().catch((error) => { throw(error); });
+  console.log("catchUndiscoveredUpdatesLoop loop!");
+  setTimeout(catchUndiscoveredUpdatesLoop, CRAWL_UNDISCOVERED_CHANGE_INTERVAL);
+  
+};
+
+const updateKnownPendingCrawlLoop = async () => {
+  await updateNFTsPendingCrawl().catch((error) => { throw(error); });
+  await updateNFTsPendingCrawl().catch((error) => { throw(error); });
+  await updateMintsPendingCrawl().catch((error) => { throw(error); });
+  setTimeout(catchUndiscoveredUpdatesLoop, CRAWL_KNOWN_PENDING_INTERVAL);
+}
+
+const bootstrap = async () => {
+  
+}
+
+app.listen(port, async () => {
   console.log(`Banano Meta Node listening at port ${port}`);
+  setTimeout(bootstrap, 1000);
+  //setTimeout(catchUndiscoveredUpdatesLoop, CRAWL_KNOWN_PENDING_INTERVAL);
 });
 

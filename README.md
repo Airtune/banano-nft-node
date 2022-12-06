@@ -33,3 +33,9 @@ npm start
 
 
 # Check local_commands.txt for RPC calls
+
+# Excalidraw Entity Relation Diagram
+
+https://excalidraw.com/#json=Uw-HN-N6_DNt1pC4Q7-dj,_qQj_2660o7Dx6Zq_67FjQ
+
+

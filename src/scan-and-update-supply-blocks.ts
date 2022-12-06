@@ -1,19 +1,13 @@
 import { SupplyBlocksCrawler } from 'banano-nft-crawler/dist/supply-blocks-crawler';
-import { TAccount, TBlockHash } from 'banano-nft-crawler/dist/types/banano';
-import { INanoBlock } from 'nano-account-crawler/dist/nano-interfaces';
+import { INanoBlock, TAccount } from 'nano-account-crawler/dist/nano-interfaces';
 import { bananoIpfs } from 'banano-nft-crawler/dist/lib/banano-ipfs';
 import { parseSupplyRepresentative } from "banano-nft-crawler/dist/block-parsers/supply";
 import { NanoNode } from "nano-account-crawler/dist/nano-node";
 import { MutexManager } from './lib/mutex-manager';
-
-interface NewSupplyBlock {
-  supply_block_hash: TBlockHash,
-  supply_block_height: string,
-  metadata_representative: TAccount,
-  ipfs_cid: string,
-  max_supply: string,
-  version: string
-}
+import { traceSupplyBlocks } from './crawler/trace-supply-blocks';
+import { ISupplyBlock } from './interfaces/supply-block';
+import { createOrUpdateSupplyBlock } from './db/supply-blocks';
+import { createOrUpdateAccount } from './db/accounts';
 
 const issuers: TAccount[] = [
   "ban_1rp1aceaawpub5zyztzs4tn7gcugm5bc3o6oga16bb18bquqm1bjnoomynze",
@@ -32,37 +26,40 @@ const issuers: TAccount[] = [
 
 const mutexManager = new MutexManager();
 
-const scanIssuerForSupplyBlocks = async (nanoNode: NanoNode, pgClient: any, issuer: TAccount): Promise<NewSupplyBlock[]> => {
-  const pgRes = await pgClient.query(`
-    SELECT
-      accounts.latest_checked_supply_height AS latest_checked_supply_height,
-      accounts.latest_checked_supply_head AS latest_checked_supply_head
-    FROM accounts
-    WHERE accounts.address = LOWER($1)
-    LIMIT 1;
-  `, [issuer]).catch((error) => { throw(error) });
-
-  // if (!pgRes || !pgRes.rows || pgRes.rows.length == 0) {
-  //   return [];
-  // }
-
-  if (pgRes.rows.length > 1) {
-    throw Error("Unexpected multiple rows for accounts in scanIssuerForSupplyBlocks. Is accounts missing a unique constraint on address?");
+const traceAndUpdateIssuerSupplyBlocks = async (nanoNode: NanoNode, pgClient: any, issuer: TAccount) => {
+  const crawlAt = new Date();
+  const supplyBlocks = await traceSupplyBlocks(nanoNode, issuer);
+  if (supplyBlocks.length < 1) {
+    return [];
   }
 
-  const latestCheckedSupplyHeight = pgRes.rows[0].latest_checked_supply_height || 0;
-  const latestCheckedSupplyHead   = pgRes.rows[0].latest_checked_supply_head;
-  const supplyBlocksCrawler = new SupplyBlocksCrawler(issuer, latestCheckedSupplyHead, "0");
+  const headSupplyBlock = supplyBlocks[supplyBlocks.length - 1];
+  const _accountId = await createOrUpdateAccount(pgClient, issuer, crawlAt, headSupplyBlock.supply_block_hash, parseInt(headSupplyBlock.supply_block_height));
+  const newSupplyBlocks = [];
+
+  for (let i = 0; i < supplyBlocks.length; i++) {
+    const supplyBlock: ISupplyBlock = supplyBlocks[i];
+    const _supplyBlockId = await createSupplyBlock(pgClient, issuer, crawlAt, parseInt(supplyBlock.supply_block_height), supplyBlock.supply_block_hash);
+    newSupplyBlocks.push(supplyBlock);
+  }
+
+  return newSupplyBlocks;
+}
+
+const scanIssuerForSupplyBlocks = async (nanoNode: NanoNode, pgClient: any, issuer: TAccount): Promise<ISupplyBlock[]> => {
+  const { supply_block_crawl_at, supply_block_crawl_height, supply_block_crawl_head } = await fetchSupplyBlockHeadFromCache(pgClient, issuer).catch((error) => { throw(error); });
+
+  const supplyBlocksCrawler = new SupplyBlocksCrawler(issuer, supply_block_crawl_head);
   // supplyBlocksCrawler.ignoreMetadataRepresentatives = [];
   const supplyBlocks = await supplyBlocksCrawler.crawl(nanoNode).catch((error) => { throw(error) });
 
-  let newSupplyBlocks: NewSupplyBlock[] = [];
+  let newSupplyBlocks: ISupplyBlock[] = [];
 
   for (let i = 0; i < supplyBlocks.length; i++) {
     const supplyBlock: INanoBlock          = supplyBlocksCrawler.supplyBlocks[i];
     const metadataRepresentative: TAccount = supplyBlocksCrawler.metadataRepresentatives[i];
 
-    if (BigInt(supplyBlock.height) <= BigInt(latestCheckedSupplyHeight)) {
+    if (BigInt(supplyBlock.height) <= BigInt(supply_block_crawl_height)) {
       continue;
     }
 
