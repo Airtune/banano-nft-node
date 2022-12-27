@@ -12,9 +12,11 @@ const issuers: TAccount[] = [
   "ban_1tixkw3trrrbsrpcsmeendfpjy9rssqu7b5naqmixpmrgcaf8nfakupxi9a8",
   "ban_3aijf9scicxc4jjikdb9hbcjp8qr5m1tjjtqpn8e1cdwppq3u14mrwj7c4eb",
   "ban_1swapxh34bjstbc8c5tonbncw5nrc6sgk7h71bxtetty3huiqcj6mja9rxjt",
-  "ban_3rjkg7cej8mgorzbq1wdr6upn1ibubpbnt584yhpijr3kq9joi9pmxyeuwtz"
+  "ban_3rjkg7cej8mgorzbq1wdr6upn1ibubpbnt584yhpijr3kq9joi9pmxyeuwtz",
+  "ban_3txnc8y3za46hbguisj44cci8ja1pckryobj1wgb5t816g8yy6ojxibcr1ka"
 ];
 
-export const get_issuers = async(): Promise<any[]> => {
+// TODO: Make a db request so the list of issuers is dynamic.
+export const get_issuers = async(): Promise<TAccount[]> => {
   return issuers;
 }

@@ -31,6 +31,13 @@ Set NODE_RPC_URL in /src/constants.ts to a Bananode RPC url.
 npm start
 ```
 
+# Start server (daemon)
+
+```
+npm install pm2 -g
+pm2 start --name bananonftnode "npm start"
+```
+
 
 # Check local_commands.txt for RPC calls
 

@@ -12,9 +12,9 @@ exports.up = pgm => {
     asset_representative:     { type: 'string', notNull: true },
 
     // Current owner of the NFT.
-    owner_id:   { type: 'integer', references: 'accounts' },
+    owner_id:   { type: 'integer', references: 'accounts', notNull: true },
     // Current account to crawl for the asset chain. May differ from owner during swaps.
-    account_id: { type: 'integer', references: 'accounts' },
+    account_id: { type: 'integer', references: 'accounts', notNull: true },
     supply_block_id:          { type: 'integer', references: 'supply_blocks' },
   
     mint_number:              { type: 'integer', notNull: true, default: 0 },
@@ -43,13 +43,15 @@ exports.up = pgm => {
   pgm.createIndex('nfts', 'account_id');
   pgm.createIndex('nfts', 'supply_block_id');
   pgm.createIndex('nfts', 'upper(mint_block_hash)', { unique: true });
+  pgm.createIndex('nfts', ['supply_block_id', 'mint_number'], { unique: true });
   pgm.createIndex('nfts', ['supply_block_id', 'mint_block_height'], { unique: true });
 };
 
 exports.down = pgm => {
   pgm.dropIndex('nfts', ['supply_block_id', 'mint_block_height'], { ifExists: true });
+  pgm.dropIndex('nfts', 'mint_number', { ifExists: true });
   pgm.dropIndex('nfts', 'upper(mint_block_hash)', { ifExists: true });
-  pgm.dropIndex('nfts', 'supply_block_id');
+  pgm.dropIndex('nfts', ['supply_block_id', 'mint_number']);
   pgm.dropIndex('nfts', 'account_id');
   pgm.dropIndex('nfts', 'owner_id');
   pgm.dropTable('nfts');

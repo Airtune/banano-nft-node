@@ -14,7 +14,7 @@ exports.up = pgm => {
     issuer_id:    { type: 'integer', references: 'accounts' },
 
     // To keep track of the supply.
-    max_supply:   { type: 'integer', notNull: false },
+    max_supply:   { type: 'integer', notNull: true },
     mint_count:   { type: 'integer', notNull: true, default: 0 },
     burn_count:   { type: 'integer', notNull: true, default: 0 },
 

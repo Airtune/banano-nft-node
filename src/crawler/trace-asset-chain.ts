@@ -1,6 +1,4 @@
 // Types and interfaces
-import { IAssetBlock } from '../interfaces/asset-block'
-import { IAssetBlock as ICrawlerAssetBlock } from 'banano-nft-crawler/dist/interfaces/asset-block';
 import { INanoBlock, TAccount, TBlockHash } from 'nano-account-crawler/dist/nano-interfaces';
 
 // imports
@@ -17,17 +15,6 @@ export const traceAssetChain = async (bananode, issuer: TAccount, mintBlockHash:
   }
   const assetCrawler = new AssetCrawler(issuer, mintBlock);
   await assetCrawler.crawl(bananode);
-
-  const assetChain: IAssetBlock[] = assetCrawler.assetChain.map((assetBlock: ICrawlerAssetBlock) => {
-    return {
-      account:    assetBlock.account,
-      owner:      assetBlock.owner,
-      locked:     assetBlock.locked,
-      block_hash: assetBlock.block_hash,
-      state:      assetBlock.state,
-      type:       assetBlock.type
-    } as IAssetBlock;
-  });
 
   return assetCrawler;
 };

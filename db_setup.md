@@ -1,5 +1,5 @@
 psql postgres
-  CREATE ROLE airtune WITH SUPERUSER;
+  CREATE ROLE bananometanode WITH SUPERUSER;
   CREATE DATABASE bananonfts;
 
 psql bananonfts

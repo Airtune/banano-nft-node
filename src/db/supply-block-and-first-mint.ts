@@ -3,16 +3,14 @@ import { INanoBlock, TAccount, TBlockHash, TNanoBlockSubtype } from "nano-accoun
 import { TAssetState } from "banano-nft-crawler/dist/types/asset-state";
 
 import { createOrUpdateAccount } from "./accounts";
-import { IAssetBlock } from "banano-nft-crawler/dist/interfaces/asset-block";
 import { DEBUG } from "../constants";
-import { dbPrepareAssetChain } from "./db-prepare-asset-chain";
+import { IAssetBlockDb } from "./db-prepare-asset-chain";
 
-export const createSupplyBlockAndFirstMint = async (pgPool: any, firstMintBlock: INanoBlock, issuer_id: number, max_supply: (null | number), asset_chain_frontiers: IAssetBlock[]) => {
+export const createSupplyBlockAndFirstMint = async (crawl_at: Date, pgPool: any, firstMintBlock: INanoBlock, issuer_id: number, max_supply: (null | number), db_asset_chain_frontiers: IAssetBlockDb[]) => {
   if (DEBUG) {
     console.log('createSupplyBlockAndFirstMint...');
   }
 
-  const crawl_at: Date = new Date();
   const mint_block_hash: TBlockHash = firstMintBlock.hash;
   const mint_block_height: number = parseInt(firstMintBlock.height);
   const metadata_representative: TAccount = firstMintBlock.representative as TAccount;
@@ -33,11 +31,14 @@ export const createSupplyBlockAndFirstMint = async (pgPool: any, firstMintBlock:
     if (DEBUG) {
       console.log('createSupplyBlockAndFirstMint // Create account...');
     }
+    const recipient_address = bananojs.bananoUtil.getAccount(firstMintBlock.link, 'ban_') as TAccount;
+    const supply_block_crawl_head = firstMintBlock.hash;
+    const supply_block_crawl_height = parseInt(firstMintBlock.height);
+    account_id = await createOrUpdateAccount(pgClient, recipient_address, crawl_at, supply_block_crawl_head, supply_block_crawl_height);
     // Create account
     if (firstMintBlock.subtype === 'send') {
       state = 'receivable';
-      const recipient_address = bananojs.bananoUtil.getAccount(firstMintBlock.link, 'ban_') as TAccount;
-      account_id = await createOrUpdateAccount(pgClient, recipient_address, null, null, null);
+      
       owner_id = account_id;
     } else if (firstMintBlock.subtype === 'change') {
       state = 'owned';
@@ -51,9 +52,14 @@ export const createSupplyBlockAndFirstMint = async (pgPool: any, firstMintBlock:
       console.log('createSupplyBlockAndFirstMint // Create supply block...');
     }
     // Create supply block
+    const frontier = db_asset_chain_frontiers[db_asset_chain_frontiers.length - 1];
+    let burn_count = 0;
+    if (frontier.state === 'burned') {
+      burn_count = 1;
+    }
     const supplyBlockRes = await pgClient.query(
-      `INSERT INTO supply_blocks(metadata_representative, issuer_id, max_supply, mint_count, block_hash, block_height, mint_crawl_at, mint_crawl_height, mint_crawl_head) VALUES ($1, $2, $3, 1, $4, $5, $6, $7, $8) RETURNING id;`,
-      [metadata_representative, issuer_id, max_supply, mint_block_hash, mint_block_height, crawl_at, mint_block_height, mint_block_hash]
+      `INSERT INTO supply_blocks(metadata_representative, issuer_id, max_supply, mint_count, burn_count, block_hash, block_height, mint_crawl_at, mint_crawl_height, mint_crawl_head) VALUES ($1, $2, $3, 1, $4, $5, $6, $7, $8, $9) RETURNING id;`,
+      [metadata_representative, issuer_id, max_supply, burn_count, mint_block_hash, mint_block_height, crawl_at, mint_block_height, mint_block_hash]
     ).catch((error) => { throw(error); });
     if (DEBUG) {
       console.log('createSupplyBlockAndFirstMint // Create supply block!');
@@ -64,12 +70,9 @@ export const createSupplyBlockAndFirstMint = async (pgPool: any, firstMintBlock:
       console.log(`supply_block_id: ${supply_block_id}`);
     }
 
-    const dbAssetChainFrontiers = dbPrepareAssetChain(asset_chain_frontiers);
-
     if (DEBUG) {
       console.log('createSupplyBlockAndFirstMint // Create first NFT mint');
     }
-    const frontier = asset_chain_frontiers[asset_chain_frontiers.length - 1];
     const locked = frontier.locked;
     const asset_chain_height = frontier.block_height;
     const mint_number = 1;
@@ -89,34 +92,12 @@ export const createSupplyBlockAndFirstMint = async (pgPool: any, firstMintBlock:
         mint_block_hash, // crawl_block_head,
         locked,
         state,
-        JSON.stringify(dbAssetChainFrontiers), // asset_chain_frontiers,
+        JSON.stringify(db_asset_chain_frontiers), // asset_chain_frontiers,
         asset_chain_height, // asset_chain_height
         mint_block_hash, // frontier_hash
         mint_block_height // frontier_height
       ]
     );
-    /*
-    const assetBlockRes = await pgClient.query(
-      `INSERT INTO nfts(mint_number, locked, asset_representative, owner_id, account_id, supply_block_id, mint_block_hash, mint_block_height, crawl_at, crawl_block_head, crawl_block_height, state, asset_chain_height, frontier_hash, frontier_height) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id;`,
-      [
-        1,
-        locked,
-        asset_representative,
-        owner_id,
-        account_id,
-        supply_block_id,
-        mint_block_hash,
-        mint_block_height,
-        crawl_at,
-        mint_block_hash,
-        mint_block_height,
-        state,
-        blockHeight,
-        mint_block_hash,
-        mint_block_height
-      ]
-    );
-    */
 
     if (DEBUG) {
       console.log('createSupplyBlockAndFirstMint COMMIT...');

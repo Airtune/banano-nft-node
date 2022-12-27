@@ -2,22 +2,7 @@ import * as dotenv from 'dotenv' // see https://github.com/motdotla/dotenv#how-d
 dotenv.config();
 
 // banano-nft-crawler
-import { SupplyBlocksCrawler } from 'banano-nft-crawler/dist/supply-blocks-crawler';
 import { MintBlocksCrawler } from 'banano-nft-crawler/dist/mint-blocks-crawler';
-import { AssetCrawler } from 'banano-nft-crawler/dist/asset-crawler';
-
-// lib
-import { getBlock } from 'banano-nft-crawler/dist/lib/get-block';
-import { bananoIpfs } from 'banano-nft-crawler/dist/lib/banano-ipfs';
-
-// src
-import { CRAWL_UNDISCOVERED_CHANGE_INTERVAL, CRAWL_KNOWN_PENDING_INTERVAL } from './src/constants';
-import { parseSupplyRepresentative } from "banano-nft-crawler/dist/block-parsers/supply";
-import { get_issuers } from './src/get-issuers';
-import { get_nfts } from './src/get-nfts';
-import { crawlIssuer } from "./src/crawl-issuer";
-import { crawlNFT, crawlNFTFromMintBlockHash } from "./src/crawl-nft";
-
 
 // Typescript types and interfaces
 import { INanoBlock, TAccount, TBlockHash } from 'nano-account-crawler/dist/nano-interfaces';
@@ -28,7 +13,7 @@ import { traceAssetFrontier } from './src/crawler/trace-asset-frontier';
 import { traceAssetBlockAtHeight } from './src/crawler/trace-asset-block-at-height';
 import { traceSupplyBlocks } from './src/crawler/trace-supply-blocks';
 
-//import { createAccount, createOrUpdateAccount } from './src/scan-and-update-supply-blocks';
+import { bootstrap } from './src/bootstrap';
 
 const express = require('express');
 const app = express();
@@ -72,24 +57,33 @@ app.get('/owner_nfts', async (req, res) => {
   try {
     const owner_address: TAccount = req.query['owner'];
     const pgRes = await pgPool.query(`
-      SELECT owner_account.address AS owner_address,
-             supply_blocks.metadata_representative AS metadata_representative,
-             supply_blocks.supply_block_hash AS supply_block_hash,
-             issuer_account.address AS issuer_address,
+      SELECT supply_blocks.metadata_representative AS metadata_representative,
+             supply_blocks.block_hash AS supply_block_hash,
+             supply_blocks.max_supply AS max_supply,
+             supply_blocks.mint_count AS mint_count,
+             supply_blocks.burn_count AS burn_count,
+             nfts.mint_number AS mint_number,
+             nfts.frontier_height AS frontier_height,
+             nfts.frontier_hash AS frontier_hash,
              nfts.asset_representative AS asset_representative,
              nfts.mint_block_hash AS mint_block_hash,
-             nfts.mint_number AS mint_number
+             issuer_account.address AS issuer_address
       FROM nfts
       INNER JOIN supply_blocks ON nfts.supply_block_id = supply_blocks.id
-      INNER JOIN accounts AS issuer_account ON supply_blocks.issuer_id = accounts.id
-      INNER JOIN accounts AS owner_account ON nfts.owner_id = accounts.id;
-    `).catch((error) => { throw(error) });
+      INNER JOIN accounts AS issuer_account ON issuer_account.id = supply_blocks.issuer_id
+      INNER JOIN accounts AS owner_account ON owner_account.id = nfts.owner_id
+      WHERE owner_account.address = $1
+      ORDER BY nfts.frontier_height;
+    `, [owner_address]).catch((error) => { throw(error) });
 
     const nfts = pgRes.rows.map((row: any) => {
       return {
         owner_address:                  row.owner_address,
         metadata_representative:        row.metadata_representative,
         supply_block_hash:              row.supply_block_hash,
+        max_supply:                     row.max_supply,
+        mint_count:                     row.mint_count,
+        burn_count:                     row.burn_count,
         issuer_address:                 row.issuer_address,
         asset_representative:           row.asset_representative,
         mint_block_hash:                row.mint_block_hash,
@@ -239,66 +233,17 @@ app.get('/get_asset_chain', async (req, res) => {
   });
 });
 
-const catchUndiscoveredMints = async () => {
-  const issuers = await get_issuers();
-  for (let i = 0; i < issuers.length; i++) {
-    const issuer = issuers[i];
-    await crawlIssuer(pgPool, bananode, issuer).catch((error) => { throw(error); });
-  }
-}
-
-const catchUndiscoveredNFTUpdates = async () => {
-  const nfts = await get_nfts();
-  for (let i = 0; i < nfts.length; i++) {
-    const nft = nfts[i];
-    await crawlNFT(pgPool, bananode, nft);
-  }
-}
-
-const updateNFTsPendingCrawl = async () => {
-  for (let i = 0; i < mintBlockHashesForNFTsPendingCrawl.length; i++) {
-    const mintBlockHash = mintBlockHashesForNFTsPendingCrawl[i];
-    await crawlNFTFromMintBlockHash(pgPool, bananode, mintBlockHash);
-  }
-
-  // clear the list
-  mintBlockHashesForNFTsPendingCrawl.splice(0, mintBlockHashesForNFTsPendingCrawl.length);
-}
-
-const updateMintsPendingCrawl = async () => {
-  for (let i = 0; i < mintBlockHashesForNFTsPendingCrawl.length; i++) {
-    const mintBlockHash = mintBlockHashesForNFTsPendingCrawl[i];
-    await crawlNFTFromMintBlockHash(pgPool, bananode, mintBlockHash);
-  }
-
-  // clear the list
-  mintBlockHashesForPendingMints.splice(0, mintBlockHashesForNFTsPendingCrawl.length);
-}
-
-const catchUndiscoveredUpdatesLoop = async () => {
-  console.log("catchUndiscoveredUpdatesLoop...");
-  await catchUndiscoveredNFTUpdates().catch((error) => { throw(error); });
-  await catchUndiscoveredMints().catch((error) => { throw(error); });
-  await catchUndiscoveredNFTUpdates().catch((error) => { throw(error); });
-  console.log("catchUndiscoveredUpdatesLoop loop!");
-  setTimeout(catchUndiscoveredUpdatesLoop, CRAWL_UNDISCOVERED_CHANGE_INTERVAL);
-  
-};
-
-const updateKnownPendingCrawlLoop = async () => {
-  await updateNFTsPendingCrawl().catch((error) => { throw(error); });
-  await updateNFTsPendingCrawl().catch((error) => { throw(error); });
-  await updateMintsPendingCrawl().catch((error) => { throw(error); });
-  setTimeout(catchUndiscoveredUpdatesLoop, CRAWL_KNOWN_PENDING_INTERVAL);
-}
-
-const bootstrap = async () => {
-  
+const startBootstrap = async () => {
+  console.log("startBootstrap...");
+  await bootstrap(bananode, pgPool).catch((error) => { throw(error); });
 }
 
 app.listen(port, async () => {
   console.log(`Banano Meta Node listening at port ${port}`);
-  setTimeout(bootstrap, 1000);
-  //setTimeout(catchUndiscoveredUpdatesLoop, CRAWL_KNOWN_PENDING_INTERVAL);
+  const nft_count_res = await pgPool.query("SELECT count(id) FROM nfts;").catch((error) => { throw(error); });
+  const nft_count = parseInt(nft_count_res.rows[0]);
+  if (typeof nft_count !== 'number' || nft_count === 0) {
+    setTimeout(startBootstrap, 1000);
+  }
 });
 
