@@ -5,6 +5,7 @@ import { TAssetState } from "banano-nft-crawler/dist/types/asset-state";
 import { createOrUpdateAccount } from "./accounts";
 import { DEBUG } from "../constants";
 import { IAssetBlockDb } from "./db-prepare-asset-chain";
+import { banano_ipfs } from "../lib/banano-ipfs";
 
 export const createSupplyBlockAndFirstMint = async (crawl_at: Date, pgPool: any, firstMintBlock: INanoBlock, issuer_id: number, max_supply: (null | number), db_asset_chain_frontiers: IAssetBlockDb[]) => {
   if (DEBUG) {
@@ -14,6 +15,7 @@ export const createSupplyBlockAndFirstMint = async (crawl_at: Date, pgPool: any,
   const mint_block_hash: TBlockHash = firstMintBlock.hash;
   const mint_block_height: number = parseInt(firstMintBlock.height);
   const metadata_representative: TAccount = firstMintBlock.representative as TAccount;
+  const ipfs_cid: string = banano_ipfs.accountToIpfsCidV0(metadata_representative);
   const asset_representative: TAccount = bananojs.bananoUtil.getAccount(mint_block_hash, 'ban_') as TAccount;
   let state: TAssetState;
   let account_id: number;
@@ -58,8 +60,8 @@ export const createSupplyBlockAndFirstMint = async (crawl_at: Date, pgPool: any,
       burn_count = 1;
     }
     const supplyBlockRes = await pgClient.query(
-      `INSERT INTO supply_blocks(metadata_representative, issuer_id, max_supply, mint_count, burn_count, block_hash, block_height, mint_crawl_at, mint_crawl_height, mint_crawl_head) VALUES ($1, $2, $3, 1, $4, $5, $6, $7, $8, $9) RETURNING id;`,
-      [metadata_representative, issuer_id, max_supply, burn_count, mint_block_hash, mint_block_height, crawl_at, mint_block_height, mint_block_hash]
+      `INSERT INTO supply_blocks(metadata_representative, ipfs_cid, issuer_id, max_supply, mint_count, burn_count, block_hash, block_height, mint_crawl_at, mint_crawl_height, mint_crawl_head) VALUES ($1, $2, $3, 1, $4, $5, $6, $7, $8, $9, $10) RETURNING id;`,
+      [metadata_representative, ipfs_cid, issuer_id, max_supply, burn_count, mint_block_hash, mint_block_height, crawl_at, mint_block_height, mint_block_hash]
     ).catch((error) => { throw(error); });
     if (DEBUG) {
       console.log('createSupplyBlockAndFirstMint // Create supply block!');

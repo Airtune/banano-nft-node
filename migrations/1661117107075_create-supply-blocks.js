@@ -9,7 +9,9 @@ exports.up = pgm => {
     updated_at: { type: 'timestamp', notNull: true, default: pgm.func('current_timestamp') },
 
     // Representative used in blocks by the issuer to mint NFTs.
-    metadata_representative: { type: 'string', notNull: false },
+    // First mint block following the supply block has the metadata_representative.
+    metadata_representative: { type: 'string', notNull: true },
+    ipfs_cid: { type: 'string', notNull: true }, // encoded in the metadata_representative
 
     issuer_id:    { type: 'integer', references: 'accounts' },
 
