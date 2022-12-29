@@ -16,6 +16,7 @@ import { createOrUpdateAccount } from "./db/accounts";
 import { createSupplyBlockAndFirstMint } from "./db/supply-block-and-first-mint";
 import { ASSET_BLOCK_FRONTIER_COUNT } from "./constants";
 import { createNFT } from "./db/nfts";
+import { delay_between_issuers, delay_between_mint_blocks, delay_between_retries, delay_between_supply_blocks } from './bananode-cooldown';
 
 // delays to avoid running out of memory on low spec banano nodes
 const ms_between_supply_blocks = 142;
@@ -23,12 +24,6 @@ const ms_between_issuers       = 720;
 const ms_between_mint_blocks   = 19;
 const ms_retry                 = 1337;
 const max_retries              = 5;
-
-function delay(ms) {
-  return new Promise((resolve) => {
-    setTimeout(() => { resolve('') }, ms);
-  });
-}
 
 // retry function if an error is throw with a delay in between retries
 async function retry_on_error(fn) {
@@ -44,7 +39,7 @@ async function retry_on_error(fn) {
         throw error;
       }
       console.log(`retrying after getting error: ${error.toString()}`);
-      await delay(ms_retry);
+      await delay_between_retries();
     }
   }
 }
@@ -80,16 +75,16 @@ export const bootstrap = async (nanoNode: NanoNode, pgPool: any): Promise<void> 
             await createNFT(pgPool, mintBlock, mintNumber, supply_block_id, db_asset_chain_frontiers, asset_chain_height);
           }
           console.log(`Finished bootstrapping asset from mint block. Frontier: ${db_asset_chain[db_asset_chain.length-1].state} ${db_asset_chain[db_asset_chain.length-1].block_hash}`)
-          await delay(ms_between_mint_blocks);
+          await delay_between_mint_blocks();
         }
 
         console.log(`Finished bootstrapping supply block: ${supplyBlock.supply_block_hash}, representative: ${supplyBlock.metadata_representative}`);
-        await delay(ms_between_supply_blocks);
+        await delay_between_supply_blocks();
       }
     });
 
     console.log(`Finished bootstrapping issuer: ${issuer}`);
-    await delay(ms_between_issuers);
+    await delay_between_issuers();
   }
   console.log('Finished bootstrapping everything.');
 }

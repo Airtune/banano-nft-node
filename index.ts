@@ -241,7 +241,7 @@ const startBootstrap = async () => {
 app.listen(port, async () => {
   console.log(`Banano Meta Node listening at port ${port}`);
   const nft_count_res = await pgPool.query("SELECT count(id) FROM nfts;").catch((error) => { throw(error); });
-  const nft_count = parseInt(nft_count_res.rows[0]);
+  const nft_count = parseInt(nft_count_res.rows[0].count);
   if (typeof nft_count !== 'number' || nft_count === 0) {
     setTimeout(startBootstrap, 1000);
   }
