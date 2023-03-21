@@ -6,6 +6,7 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "start": "ts-node ./index.ts",
+    "bootstrap": "ts-node ./run_bootstrap.ts",
     "test": "mocha --require ts-node/register ./test/**/*.spec.ts",
     "migrate": "node-pg-migrate"
   },

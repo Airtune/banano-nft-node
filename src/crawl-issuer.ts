@@ -1,11 +1,9 @@
-// TYPES
+// types and interfaces
 import { NanoNode } from "nano-account-crawler/dist/nano-node";
 import { TAccount, TBlockHash } from "nano-account-crawler/dist/nano-interfaces";
-
 import { ISupplyBlock } from './interfaces/supply-block';
-import { IAssetBlock } from './interfaces/asset-block';
 
-// DEPENDENCIES
+// dependencies
 import { MintBlocksCrawler } from 'banano-nft-crawler/dist/mint-blocks-crawler';
 import { traceSupplyBlocks } from './crawler/trace-supply-blocks';
 import { traceAssetChain } from './crawler/trace-asset-chain';
@@ -60,7 +58,8 @@ export const crawlIssuer = async (pgPool: any, nanoNode: NanoNode, issuer: TAcco
         const nftAssetCrawler = await traceAssetChain(nanoNode, lowercaseIssuer, mintBlock.hash).catch((error) => { throw(error); });
         const dbAssetChainFrontiers = dbPrepareAssetChain(nftAssetCrawler.assetChain).slice(-ASSET_BLOCK_FRONTIER_COUNT);
         const mintNumber = 1; // TODO: Calculate mint number in a way that works with caching!!!
-        const nftId = await createOrUpdateNFT(pgPool, mintBlock, mintNumber, supplyBlockId, dbAssetChainFrontiers).catch((error) => { throw(error); });
+        const assetChainHeight: number = nftAssetCrawler.assetChain.length;
+        const nftId = await createOrUpdateNFT(pgPool, mintBlock, mintNumber, supplyBlockId, dbAssetChainFrontiers, assetChainHeight).catch((error) => { throw(error); });
       }
     }
   }).catch((error) => { throw(error); });

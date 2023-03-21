@@ -7,11 +7,13 @@
 cd banano-nft-node
 ```
 
+
 ## 1) Install dependencies
 
 ```
 npm install
 ```
+
 
 ## 2) Create postgres database with username and pasword
 
@@ -21,15 +23,29 @@ npm install
 DATABASE_URL=postgres://user:password@localhost:5432 npm run migrate up
 ```
 
+
 ## 4) Set NODE_RPC_URL
 
 Set NODE_RPC_URL in /src/constants.ts to a Bananode RPC url.
 
+
+# Bootstrap NFT ledger
+
+When the Banano node is synced, to bootstrap, run:
+
+```
+npm run bootstrap
+```
+
+
 # Start server
+
+Once the node has bootstrapped the NFT ledger, start the server with:
 
 ```
 npm start
 ```
+
 
 # Start server (daemon)
 

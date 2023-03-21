@@ -7,7 +7,7 @@ import { DEBUG } from "../constants";
 import { IAssetBlockDb } from "./db-prepare-asset-chain";
 import { banano_ipfs } from "../lib/banano-ipfs";
 
-export const createSupplyBlockAndFirstMint = async (crawl_at: Date, pgPool: any, firstMintBlock: INanoBlock, issuer_id: number, max_supply: (null | number), db_asset_chain_frontiers: IAssetBlockDb[]) => {
+export const createSupplyBlockAndFirstMint = async (crawl_at: Date, pgPool: any, firstMintBlock: INanoBlock, issuer_id: number, max_supply: (null | number), db_asset_chain_frontiers: IAssetBlockDb[], asset_chain_height: number) => {
   if (DEBUG) {
     console.log('createSupplyBlockAndFirstMint...');
   }
@@ -25,6 +25,7 @@ export const createSupplyBlockAndFirstMint = async (crawl_at: Date, pgPool: any,
   const pgClient: any = await pgPool.connect().catch((error) => { throw(error); });
   
   try {
+
     await pgClient.query('BEGIN;');
     if (DEBUG) {
       console.log('createSupplyBlockAndFirstMint BEGIN!');
@@ -76,7 +77,6 @@ export const createSupplyBlockAndFirstMint = async (crawl_at: Date, pgPool: any,
       console.log('createSupplyBlockAndFirstMint // Create first NFT mint');
     }
     const locked = frontier.locked;
-    const asset_chain_height = frontier.block_height;
     const mint_number = 1;
     // Create first NFT mint
     const assetBlockRes = await pgClient.query(
@@ -90,14 +90,14 @@ export const createSupplyBlockAndFirstMint = async (crawl_at: Date, pgPool: any,
         mint_block_hash,
         mint_block_height,
         crawl_at,
-        mint_block_height, // crawl_block_height
-        mint_block_hash, // crawl_block_head,
+        frontier.block_height, // crawl_block_height
+        frontier.block_hash, // crawl_block_head,
         locked,
         state,
         JSON.stringify(db_asset_chain_frontiers), // asset_chain_frontiers,
-        asset_chain_height, // asset_chain_height
-        mint_block_hash, // frontier_hash
-        mint_block_height // frontier_height
+        asset_chain_height,
+        frontier.block_hash, // frontier_hash
+        frontier.block_height // frontier_height
       ]
     );
 

@@ -5,6 +5,7 @@ const ms_between_issuers       = 250;
 const ms_between_mint_blocks   = 19;
 const ms_retry                 = 350;
 let bananodeLastRequestAt: any = null;
+const BANANODE_DELAY_MULTIPLIER = parseFloat(process.env.DELAY_MULTIPLIER) || 1.0;
 
 function delay(ms) {
   return new Promise((resolve) => {
@@ -32,22 +33,22 @@ const bananode_cooldown_ms = async (cooldown_ms: number) => {
   return cooldown_ms;
 }
 
-export const delay_between_supply_blocks = async (delay_multiplier: number = 1.0) => {
+export const delay_between_supply_blocks = async (delay_multiplier: number = BANANODE_DELAY_MULTIPLIER) => {
   const cooldown_ms = await bananode_cooldown_ms(ms_between_supply_blocks * delay_multiplier);
   delay(cooldown_ms);
 }
 
-export const delay_between_issuers = async (delay_multiplier: number = 1.0) => {
+export const delay_between_issuers = async (delay_multiplier: number = BANANODE_DELAY_MULTIPLIER) => {
   const cooldown_ms = await bananode_cooldown_ms(ms_between_issuers * delay_multiplier);
   delay(cooldown_ms);
 }
 
-export const delay_between_mint_blocks = async (delay_multiplier: number = 1.0) => {
+export const delay_between_mint_blocks = async (delay_multiplier: number = BANANODE_DELAY_MULTIPLIER) => {
   const cooldown_ms = await bananode_cooldown_ms(ms_between_mint_blocks * delay_multiplier);
   delay(cooldown_ms);
 }
 
-export const delay_between_retries = async (delay_multiplier: number = 1.0) => {
+export const delay_between_retries = async (delay_multiplier: number = BANANODE_DELAY_MULTIPLIER) => {
   const cooldown_ms = await bananode_cooldown_ms(ms_retry * delay_multiplier);
   delay(cooldown_ms);
 }

@@ -13,8 +13,6 @@ import { traceAssetFrontier } from './src/crawler/trace-asset-frontier';
 import { traceAssetBlockAtHeight } from './src/crawler/trace-asset-block-at-height';
 import { traceSupplyBlocks } from './src/crawler/trace-supply-blocks';
 
-import { bootstrap } from './src/bootstrap';
-
 const express = require('express');
 const app = express();
 const port = 1919;
@@ -53,11 +51,68 @@ const catchAndRespondWithError = async (res, fn) => {
   console.log('\n');
 }
 
-app.get('/owner_nfts', async (req, res) => {
-  try {
+// DB data
+// Pending state includes atomic_swap_receivable, atomic_swap_payable, and receivable.
+// `conflicting_state_nfts` is a list of NFTs for the account where you can only do one
+// action and the other ones will be cancelled. E.g. one NFT in the state atomic_swap_receivable
+// and another in the state atomic_swap_payable that both expect a block at the same height
+// in the account.
+app.get('/pending_state_nfts_for_account', async (req, res) => {
+  await catchAndRespondWithError(res, async () => {
+    // NB: Account is different from owner. E.g. during an atomic swap the paying account that
+    // has not payed yet is the account for the NFT but is not the owner yet.
+    const account_address: TAccount = req.query['account'];
+    const pgRes = await pgPool.query(`
+      SELECT supply_blocks.metadata_representative AS metadata_representative,
+             supply_blocks.ipfs_cid AS ipfs_cid,
+             supply_blocks.block_hash AS supply_block_hash,
+             supply_blocks.max_supply AS max_supply,
+             supply_blocks.mint_count AS mint_count,
+             supply_blocks.burn_count AS burn_count,
+             nfts.state AS state,
+             nfts.mint_number AS mint_number,
+             nfts.frontier_height AS frontier_height,
+             nfts.frontier_hash AS frontier_hash,
+             nfts.asset_representative AS asset_representative,
+             nfts.mint_block_hash AS mint_block_hash,
+             issuer_account.address AS issuer_address
+      FROM nfts
+      INNER JOIN supply_blocks ON nfts.supply_block_id = supply_blocks.id
+      INNER JOIN accounts AS issuer_account ON issuer_account.id = supply_blocks.issuer_id
+      INNER JOIN accounts AS nft_account ON nft_account.id = nfts.account_id
+      WHERE nft_account.address = $1 AND
+        nfts.state IN ('atomic_swap_receivable', 'atomic_swap_payable', 'receivable')
+      ORDER BY nfts.frontier_height;
+    `, [account_address]).catch((error) => { throw(error) });
+
+
+    let conflicting_nft_states: any[] = [];
+    for (let i = 0; i < pgRes.rows.length; i++) {
+      const nft = pgRes.rows[i];
+      if (['atomic_swap_receivable', 'atomic_swap_payable'].includes(nft.state)) {
+        conflicting_nft_states.push(nft);
+      }
+    }
+    if (conflicting_nft_states.length <= 1) {
+      conflicting_nft_states = [];
+    }
+
+    const reponse: string = JSON.stringify({
+      account: account_address,
+      pending_state_nfts: pgRes.rows,
+      conflicting_state_nfts: conflicting_nft_states
+    });
+
+    res.send(reponse);
+  });
+});
+
+app.get('/nfts_for_owner', async (req, res) => {
+  await catchAndRespondWithError(res, async () => {
     const owner_address: TAccount = req.query['owner'];
     const pgRes = await pgPool.query(`
       SELECT supply_blocks.metadata_representative AS metadata_representative,
+             supply_blocks.ipfs_cid AS ipfs_cid,
              supply_blocks.block_hash AS supply_block_hash,
              supply_blocks.max_supply AS max_supply,
              supply_blocks.mint_count AS mint_count,
@@ -80,6 +135,7 @@ app.get('/owner_nfts', async (req, res) => {
       return {
         owner_address:                  row.owner_address,
         metadata_representative:        row.metadata_representative,
+        ipfs_cid:                       row.ipfs_cid,
         supply_block_hash:              row.supply_block_hash,
         max_supply:                     row.max_supply,
         mint_count:                     row.mint_count,
@@ -97,23 +153,17 @@ app.get('/owner_nfts', async (req, res) => {
     });
 
     res.send(reponse);
-  } catch (error) {
-    res.send(JSON.stringify({
-      status: 'error',
-      error: error.toString()
-    }));
-  }
-  console.log('\n');
+  });
 });
 
+// Realtime crawling
 app.get('/get_supply_blocks', async (req, res) => {
-  try {
+  await catchAndRespondWithError(res, async () => {
     const issuer: TAccount = req.query['issuer'] as TAccount;
     const { supplyBlocks, crawlerHead, crawlerHeadHeight } = await traceSupplyBlocks(bananode, issuer);
 
     for (let i = 0; i < supplyBlocks.length; i++) {
       const supplyBlock = supplyBlocks[i];
-      
     }
 
     const reponse: string = JSON.stringify({
@@ -122,17 +172,11 @@ app.get('/get_supply_blocks', async (req, res) => {
     });
 
     res.send(reponse);
-  } catch(error) {
-    res.send(JSON.stringify({
-      status: 'error',
-      error: error.toString()
-    }));
-  }
-  console.log('\n');
+  });
 });
 
 app.get('/get_mint_blocks', async (req, res) => {
-  try {
+  await catchAndRespondWithError(res, async () => {
     const issuer: TAccount = req.query['issuer'] as TAccount;
     const supplyBlockHash: TBlockHash = req.query['supply_block_hash'] as TBlockHash;
 
@@ -155,18 +199,12 @@ app.get('/get_mint_blocks', async (req, res) => {
     });
 
     res.send(reponse);
-  } catch(error) {
-    res.send(JSON.stringify({
-      status: 'error',
-      error: error.toString()
-    }));
-  }
-  console.log('\n');
+  });
 });
 
 // TRACE
 app.get('/get_asset_frontier', async (req, res) => {
-  catchAndRespondWithError(res, async () => {
+  await catchAndRespondWithError(res, async () => {
     // TODO: validate params !!!
     const issuer: TAccount = req.query['issuer'] as TAccount;
     const mintBlockHash: TBlockHash = req.query['mint_block_hash'] as TBlockHash;
@@ -186,7 +224,7 @@ app.get('/get_asset_frontier', async (req, res) => {
 });
 
 app.get('/get_asset_at_height', async (req, res) => {
-  catchAndRespondWithError(res, async () => {
+  await catchAndRespondWithError(res, async () => {
     // TODO: validate params !!!
     const issuer: TAccount          = req.query['issuer'] as TAccount;
     const mintBlockHash: TBlockHash = req.query['mint_block_hash'] as TBlockHash;
@@ -208,7 +246,7 @@ app.get('/get_asset_at_height', async (req, res) => {
 });
 
 app.get('/get_asset_chain', async (req, res) => {
-  catchAndRespondWithError(res, async () => {
+  await catchAndRespondWithError(res, async () => {
     // TODO: validate params !!!
     const issuer: TAccount          = req.query['issuer'] as TAccount;
     const mintBlockHash: TBlockHash = req.query['mint_block_hash'] as TBlockHash;
@@ -233,17 +271,7 @@ app.get('/get_asset_chain', async (req, res) => {
   });
 });
 
-const startBootstrap = async () => {
-  console.log("startBootstrap...");
-  await bootstrap(bananode, pgPool).catch((error) => { throw(error); });
-}
-
 app.listen(port, async () => {
   console.log(`Banano Meta Node listening at port ${port}`);
-  const nft_count_res = await pgPool.query("SELECT count(id) FROM nfts;").catch((error) => { throw(error); });
-  const nft_count = parseInt(nft_count_res.rows[0].count);
-  if (typeof nft_count !== 'number' || nft_count === 0) {
-    setTimeout(startBootstrap, 1000);
-  }
 });
 

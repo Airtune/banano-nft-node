@@ -1,6 +1,6 @@
 // types and interfaces
 import { NanoNode } from "nano-account-crawler/dist/nano-node";
-import { INanoBlock, TAccount } from "nano-account-crawler/dist/nano-interfaces";
+import { INanoBlock, TAccount, TBlockHash } from "nano-account-crawler/dist/nano-interfaces";
 import { ISupplyBlock } from "./interfaces/supply-block";
 
 // dependencies
@@ -17,12 +17,9 @@ import { createSupplyBlockAndFirstMint } from "./db/supply-block-and-first-mint"
 import { ASSET_BLOCK_FRONTIER_COUNT } from "./constants";
 import { createNFT } from "./db/nfts";
 import { delay_between_issuers, delay_between_mint_blocks, delay_between_retries, delay_between_supply_blocks } from './bananode-cooldown';
+import { banano_ipfs } from "./lib/banano-ipfs";
 
 // delays to avoid running out of memory on low spec banano nodes
-const ms_between_supply_blocks = 142;
-const ms_between_issuers       = 720;
-const ms_between_mint_blocks   = 19;
-const ms_retry                 = 1337;
 const max_retries              = 5;
 
 // retry function if an error is throw with a delay in between retries
@@ -52,8 +49,8 @@ export const bootstrap = async (nanoNode: NanoNode, pgPool: any): Promise<void> 
     const issuer = issuers[i].toLowerCase() as TAccount;
     console.log(`bootstrapping issuer: ${issuer}`);
     await mainMutexManager.runExclusive(issuer, async () => {
-      const issuer_id = await createOrUpdateAccount(pgPool, issuer, crawlAt, null, null).catch((error) => { throw(error); });
-      const supplyBlocks: ISupplyBlock[] = await bootstrap_supply_blocks_from_issuer(nanoNode, issuer).catch((error) => { throw(error); });
+      const { supplyBlocks, crawlerHead, crawlerHeadHeight } = await bootstrap_supply_blocks_from_issuer(nanoNode, issuer).catch((error) => { throw(error); });
+      const issuer_id = await createOrUpdateAccount(pgPool, issuer, crawlAt, crawlerHead, crawlerHeadHeight).catch((error) => { throw(error); });      
 
       for (let i = 0; i < supplyBlocks.length; i++) {
         const supplyBlock = supplyBlocks[i];
@@ -69,19 +66,19 @@ export const bootstrap = async (nanoNode: NanoNode, pgPool: any): Promise<void> 
           const db_asset_chain_frontiers = db_asset_chain.slice(-ASSET_BLOCK_FRONTIER_COUNT);
           const asset_chain_height: number = db_asset_chain.length;
           if (j == 0) {
-            supply_block_id = await createSupplyBlockAndFirstMint(crawlAt, pgPool, mintBlock, issuer_id, maxSupply, db_asset_chain_frontiers); 
+            supply_block_id = await createSupplyBlockAndFirstMint(crawlAt, pgPool, mintBlock, issuer_id, maxSupply, db_asset_chain_frontiers, asset_chain_height).catch((error) => { throw(error); });
           } else {
             const mintNumber = j+1;
-            await createNFT(pgPool, mintBlock, mintNumber, supply_block_id, db_asset_chain_frontiers, asset_chain_height);
+            await createNFT(pgPool, mintBlock, mintNumber, supply_block_id, db_asset_chain_frontiers, asset_chain_height).catch((error) => { throw(error); });
           }
-          console.log(`Finished bootstrapping asset from mint block. Frontier: ${db_asset_chain[db_asset_chain.length-1].state} ${db_asset_chain[db_asset_chain.length-1].block_hash}`)
+          console.log(`Finished bootstrapping asset from mint block. Frontier: ${db_asset_chain[db_asset_chain.length-1].state} ${db_asset_chain[db_asset_chain.length-1].block_hash}`);
           await delay_between_mint_blocks();
         }
 
         console.log(`Finished bootstrapping supply block: ${supplyBlock.supply_block_hash}, representative: ${supplyBlock.metadata_representative}`);
         await delay_between_supply_blocks();
       }
-    });
+    }).catch((error) => { throw(error); });
 
     console.log(`Finished bootstrapping issuer: ${issuer}`);
     await delay_between_issuers();
@@ -89,18 +86,14 @@ export const bootstrap = async (nanoNode: NanoNode, pgPool: any): Promise<void> 
   console.log('Finished bootstrapping everything.');
 }
 
-const bootstrap_supply_blocks_from_issuer = async(nanoNode: NanoNode, issuer: TAccount): Promise<ISupplyBlock[]> => {
+const bootstrap_supply_blocks_from_issuer = async(nanoNode: NanoNode, issuer: TAccount): Promise<{ supplyBlocks: ISupplyBlock[], crawlerHead: TBlockHash, crawlerHeadHeight: number }> => {
   return await retry_on_error(async () => {
     const { supplyBlocks, crawlerHead, crawlerHeadHeight } = await traceSupplyBlocks(nanoNode, issuer).catch((error) => { throw(error); });
-    if (Array.isArray(supplyBlocks)) {
-      return supplyBlocks;
-    } else {
-      return [];
-    }
+    return { supplyBlocks, crawlerHead, crawlerHeadHeight };;
   }).catch((error) => { throw(error); });
 }
 
-const bootstrap_mint_blocks_from_supply_block = async(nanoNode: NanoNode, issuer: TAccount, supplyBlock: ISupplyBlock) => {
+export const bootstrap_mint_blocks_from_supply_block = async(nanoNode: NanoNode, issuer: TAccount, supplyBlock: ISupplyBlock) => {
   return await retry_on_error(async () => {
     const nftSupplyBlockHash = supplyBlock.supply_block_hash;
     const mintBlocksCrawler: MintBlocksCrawler = new MintBlocksCrawler(issuer, nftSupplyBlockHash);
@@ -115,7 +108,7 @@ const bootstrap_mint_blocks_from_supply_block = async(nanoNode: NanoNode, issuer
   }).catch((error) => { throw(error); });
 }
 
-const bootstrap_asset_history_from_mint_block = async(nanoNode: NanoNode, issuer: TAccount, mint_block: INanoBlock): Promise<IAssetBlockDb[]> => {
+export const bootstrap_asset_history_from_mint_block = async(nanoNode: NanoNode, issuer: TAccount, mint_block: INanoBlock): Promise<IAssetBlockDb[]> => {
   return await retry_on_error(async () => {
     const assetCrawler = await traceAssetChain(nanoNode, issuer, mint_block.hash).catch((error) => { throw(error); });
     const assetChain = assetCrawler.assetChain;
@@ -126,3 +119,5 @@ const bootstrap_asset_history_from_mint_block = async(nanoNode: NanoNode, issuer
     }
   }).catch((error) => { throw(error); });
 }
+
+

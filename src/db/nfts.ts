@@ -33,7 +33,6 @@ export const createNFT = async (pgPool: any, firstMintBlock: INanoBlock, mintNum
     // Lock supply_blocks row
     await pgClient.query(`SELECT FROM supply_blocks WHERE id = $1 FOR UPDATE LIMIT 1;`, [supply_block_id]);
     // Update supply_blocks row
-    
 
     if (assetChainFrontier.state == 'burned') {
       await pgClient.query(
@@ -120,6 +119,34 @@ export const createNFT = async (pgPool: any, firstMintBlock: INanoBlock, mintNum
   }
 };
 
+export const updateNFT = async (pgClient: any, nft_id: number, crawl_at: Date, crawl_block_head: TBlockHash, crawl_block_height: number, new_db_asset_chain_frontiers: IAssetBlockDb[]) => {
+  const frontier: IAssetBlockDb = new_db_asset_chain_frontiers[new_db_asset_chain_frontiers.length-1];
+  await pgClient.query(
+    `UPDATE nfts
+    SET locked = $1,
+      crawl_at = $2,
+      crawl_block_head = $3,
+      crawl_block_height = $4,
+      state = $5,
+      asset_chain_frontiers = $6,
+      asset_chain_height = $7,
+      frontier_hash = $8,
+      frontier_height = $9
+    WHERE id = $10`,
+    [
+      frontier.locked,
+      crawl_at,
+      crawl_block_head,
+      crawl_block_height,
+      frontier.state,
+      new_db_asset_chain_frontiers,
+      0, // !!! TODO: remove or update asset_chain_height
+      frontier.block_hash,
+      frontier.block_height,
+      nft_id
+    ]
+  ).catch((error) => { throw(error); });
+}
 
 export const createOrUpdateNFT = async (pgClient: any, firstMintBlock: INanoBlock, mintNumber: number, supply_block_id: number, asset_chain_frontiers: IAssetBlockDb[], asset_chain_height: number) => {
   const crawl_at: Date = new Date();
