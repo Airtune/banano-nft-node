@@ -30,7 +30,7 @@ async function retry_on_error(fn) {
     retries += 1;
 
     try {
-      return await fn().catch((error) => { throw(error); });;
+      return await fn();
     } catch (error) {
       if (retries >= max_retries) {
         throw error;

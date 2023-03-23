@@ -14,7 +14,15 @@ export const traceAssetChain = async (bananode, issuer: TAccount, mintBlockHash:
     throw Error(`MintBlockError: Unabled to find block with hash: ${mintBlockHash}`);
   }
   const assetCrawler = new AssetCrawler(issuer, mintBlock);
-  await assetCrawler.crawl(bananode);
+  console.log('try');
+  try {
+    await assetCrawler.crawl(bananode);
+  } catch (error) {
+    console.log(`state: ${assetCrawler.frontier?.state}`);
+  } finally {
+    console.log(JSON.stringify(assetCrawler.frontier?.state))
+  }
+  
 
   return assetCrawler;
 };

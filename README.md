@@ -15,7 +15,30 @@ npm install
 ```
 
 
+
+Make sure postgres service is running and start it if it's not:
+```
+sudo systemctl status postgresql.service
+sudo systemctl start postgresql.service
+sudo systemctl restartstart postgresql.service
+```
+
+
 ## 2) Create postgres database with username and pasword
+
+
+
+Run psql:
+```
+psql postgres
+```
+
+Drop the database if you're doing a hard reset:
+
+```
+
+```
+
 
 ## 3) Run postgres migrations
 
