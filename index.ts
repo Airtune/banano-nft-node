@@ -35,6 +35,8 @@ if (typeof BANANODE_RPC_URL !== 'string') { throw Error('Environment variable BA
 // TODO: check bananode is available
 
 import { NanoNode } from "nano-account-crawler/dist/nano-node";
+import { IStatusReturn } from 'nano-account-crawler/dist/status-return-interfaces';
+import { AssetCrawler } from 'banano-nft-crawler/dist/asset-crawler';
 const fetch = require('node-fetch');
 export const bananode = new NanoNode(BANANODE_RPC_URL, fetch);
 
@@ -182,7 +184,13 @@ app.get('/get_mint_blocks', async (req, res) => {
 
     console.log(`/supply_blocks\nissuer: ${issuer}\n`);
     const mintBlocksCrawler = new MintBlocksCrawler(issuer, supplyBlockHash)
-    await mintBlocksCrawler.crawl(bananode);
+    await mintBlocksCrawler.crawl(bananode).catch((error) => { throw(error); );
+
+    /*
+    if (mintBlocksCrawler.errors.length > 0) {
+      // TODO: Log errors
+    }
+    */
 
     let mints: object[] = [];
 
@@ -251,7 +259,17 @@ app.get('/get_asset_chain', async (req, res) => {
     const issuer: TAccount          = req.query['issuer'] as TAccount;
     const mintBlockHash: TBlockHash = req.query['mint_block_hash'] as TBlockHash;
 
-    const assetCrawler = await traceAssetChain(bananode, issuer, mintBlockHash).catch((error) => { throw(error); });
+    const assetCrawlerStatus: IStatusReturn<AssetCrawler> = await traceAssetChain(bananode, issuer, mintBlockHash);
+    if (assetCrawlerStatus.status === "error") {
+      res.status(400).send(`Error: ${assetCrawlerStatus.error_type} ${assetCrawlerStatus.message}`);
+      return;
+    }
+    const assetCrawler = assetCrawlerStatus.value;
+    if (!assetCrawler) {
+      res.status(400).send(`Error: Unable to traceAssetChain`);
+      return;
+    }
+
     const assetChain = assetCrawler.assetChain.map((assetBlock: IAssetBlock) => {
       return {
         account:    assetBlock.account,
@@ -263,13 +281,14 @@ app.get('/get_asset_chain', async (req, res) => {
       };
     });
 
-    const reponse: string = JSON.stringify({
+    const response: string = JSON.stringify({
       asset_chain: assetChain
     });
 
-    res.send(reponse);
+    res.send(response);
   });
 });
+
 
 app.listen(port, async () => {
   console.log(`Banano Meta Node listening at port ${port}`);

@@ -4,25 +4,47 @@ import { INanoBlock, TAccount, TBlockHash } from 'nano-account-crawler/dist/nano
 // imports
 import { AssetCrawler } from 'banano-nft-crawler/dist/asset-crawler';
 import { getBlock } from 'banano-nft-crawler/dist/lib/get-block';
+import { IStatusReturn } from '../../node_modules/nano-account-crawler/dist/status-return-interfaces';
+import { NanoNode } from '../../node_modules/nano-account-crawler/dist/nano-node';
 
 // Get the asset frontier block
-export const traceAssetChain = async (bananode, issuer: TAccount, mintBlockHash: TBlockHash): Promise<AssetCrawler> => {
-  // TODO: validate params
+export const traceAssetChain = async (bananode: any, issuer: TAccount, mintBlockHash: TBlockHash): Promise<IStatusReturn<AssetCrawler>> => {
   console.log(`/traceAssetChain\nissuer: ${issuer}\nmint_block_hash: ${mintBlockHash}`);
-  const mintBlock: (INanoBlock | undefined) = await getBlock(bananode, issuer, mintBlockHash).catch((error) => { throw(error) });
-  if (mintBlock == undefined) {
-    throw Error(`MintBlockError: Unabled to find block with hash: ${mintBlockHash}`);
-  }
-  const assetCrawler = new AssetCrawler(issuer, mintBlock);
-  console.log('try');
+  let mintBlockStatusReturn: IStatusReturn<INanoBlock | undefined>;
   try {
-    await assetCrawler.crawl(bananode);
-  } catch (error) {
-    console.log(`state: ${assetCrawler.frontier?.state}`);
-  } finally {
-    console.log(JSON.stringify(assetCrawler.frontier?.state))
+    mintBlockStatusReturn = await getBlock(bananode, issuer, mintBlockHash);
+  } catch(error) {
+    return {
+      status: "error",
+      error_type: "UnexpectedError",
+      message: `${error}`
+    };
   }
-  
-
-  return assetCrawler;
+  if (mintBlockStatusReturn.status === "error") {
+    return mintBlockStatusReturn;
+  }
+  if (!mintBlockStatusReturn.value) {
+    return {
+      status: "error",
+      error_type: "MintBlockError",
+      message: `Unable to find block in traceAssetChain with hash: ${mintBlockHash}`,
+    };
+  }
+  const assetCrawler = new AssetCrawler(issuer, mintBlockStatusReturn.value);
+  try {
+    const assetCrawlerStatusReturn = await assetCrawler.crawl(bananode);
+    if (assetCrawlerStatusReturn.status === "error") {
+      return assetCrawlerStatusReturn;
+    }
+  } catch(error) {
+    return {
+      status: "error",
+      error_type: "UnexpectedError",
+      message: `${error}`
+    };
+  }
+  return {
+    status: "ok",
+    value: assetCrawler,
+  };
 };

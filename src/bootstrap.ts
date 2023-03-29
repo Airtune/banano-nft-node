@@ -109,15 +109,15 @@ export const bootstrap_mint_blocks_from_supply_block = async(nanoNode: NanoNode,
 }
 
 export const bootstrap_asset_history_from_mint_block = async(nanoNode: NanoNode, issuer: TAccount, mint_block: INanoBlock): Promise<IAssetBlockDb[]> => {
-  return await retry_on_error(async () => {
-    const assetCrawler = await traceAssetChain(nanoNode, issuer, mint_block.hash).catch((error) => { throw(error); });
-    const assetChain = assetCrawler.assetChain;
-    if (Array.isArray(assetChain)) {
-      return dbPrepareAssetChain(assetChain);
-    } else {
-      return [];
-    }
-  }).catch((error) => { throw(error); });
+  const assetCrawlerStatusReturn = await traceAssetChain(nanoNode, issuer, mint_block.hash);
+  if (assetCrawlerStatusReturn.status === "error") {
+    throw new Error(`TraceAssetChainError: ${assetCrawlerStatusReturn.error_type} ${assetCrawlerStatusReturn.message}`);
+  }
+  const assetChain = assetCrawlerStatusReturn.value?.assetChain;
+  if (Array.isArray(assetChain)) {
+    return dbPrepareAssetChain(assetChain);
+  } else {
+    return [];
+  }
 }
-
 

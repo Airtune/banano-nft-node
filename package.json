@@ -15,10 +15,10 @@
   "dependencies": {
     "@bananocoin/bananojs": "^2.6.1",
     "async-mutex": "^0.3.2",
-    "banano-nft-crawler": "file:../../banano-nft-crawler",
+    "banano-nft-crawler": "2.0.1",
     "dotenv": "^16.0.3",
     "express": "^4.18.1",
-    "nano-account-crawler": "file:../../nano-account-crawler",
+    "nano-account-crawler": "2.0.1",
     "nano-ipfs": "^1.0.5",
     "node-fetch": "^2.6.7",
     "node-pg-migrate": "^6.2.2",

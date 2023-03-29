@@ -16,19 +16,46 @@ if (typeof BANANODE_RPC_URL !== 'string') { throw Error('Environment variable BA
 
 import { NanoNode } from "nano-account-crawler/dist/nano-node";
 import { traceAssetChain } from './src/crawler/trace-asset-chain';
+import { IStatusReturn } from 'nano-account-crawler/dist/status-return-interfaces';
+import { AssetCrawler } from 'banano-nft-crawler/dist/asset-crawler';
 const fetch = require('node-fetch');
 export const bananode = new NanoNode(BANANODE_RPC_URL, fetch);
 
-const testCrawler = async () => {
+const testCrawler = async (): Promise<IStatusReturn<AssetCrawler|undefined>> => {
   const issuer = "ban_3pnftpao6pbekmear374478f1ytmwz3kodcjuzf1hutcnb3gudwi9qcu8pwc";
   const mintBlockHash = "AA3794A0A08E337CBBB84D76A31CE667E2A420C55DAFBE35C6CA2F203DD1F263";
-  const assetCrawler = await traceAssetChain(bananode, issuer, mintBlockHash).catch((error) => { throw(error); });
+  const assetCrawlerStatusReturn = await traceAssetChain(bananode, issuer, mintBlockHash).catch((error) => { throw(error); });
+  if (assetCrawlerStatusReturn.status === "error") {
+    return assetCrawlerStatusReturn;
+  }
+  return { status: "ok", value: assetCrawlerStatusReturn.value };
 }
 
 const main = async () => {
   console.log(`Bootstrapping...`);
-  await testCrawler().catch((error) => { throw(error); });
   /*
+  const testCrawlerStatusReturn = await testCrawler().catch((error) => { throw(error); });
+  if (testCrawlerStatusReturn.status === "error") {
+    console.error(`Error: ${testCrawlerStatusReturn.error_type} ${testCrawlerStatusReturn.message}`);
+    return;
+  }
+  const assetCrawler: (AssetCrawler|undefined) = testCrawlerStatusReturn.value;
+
+  if (!assetCrawler) {
+    console.error(`assetCrawler undefined`);
+    return;
+  }
+
+  const jsonString = JSON.stringify(assetCrawler.assetChain, (key, value) => {
+    // If the value is a BigInt, convert it to a string
+    if (typeof value === 'bigint') {
+      return value.toString();
+    }
+    // Otherwise, return the value as-is
+    return value;
+  });
+  console.log(jsonString);
+  */
   const nft_count_res = await pgPool.query("SELECT count(id) FROM nfts;").catch((error) => { throw(error); });
   const nft_count = parseInt(nft_count_res.rows[0].count);
   if (typeof nft_count !== 'number' || nft_count === 0) {
@@ -37,7 +64,6 @@ const main = async () => {
   } else {
     console.log(`DB not empty. Bootstrap cancelled.`);
   }
-  */
 }
 
 main().catch((error) => {
