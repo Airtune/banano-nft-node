@@ -4,8 +4,8 @@ import { INanoBlock, TAccount, TBlockHash } from 'nano-account-crawler/dist/nano
 // imports
 import { AssetCrawler } from 'banano-nft-crawler/dist/asset-crawler';
 import { getBlock } from 'banano-nft-crawler/dist/lib/get-block';
-import { IStatusReturn } from '../../node_modules/nano-account-crawler/dist/status-return-interfaces';
-import { NanoNode } from '../../node_modules/nano-account-crawler/dist/nano-node';
+import { IStatusReturn } from 'nano-account-crawler/dist/status-return-interfaces';
+import { NanoNode } from 'nano-account-crawler/dist/nano-node';
 
 // Get the asset frontier block
 export const traceAssetChain = async (bananode: any, issuer: TAccount, mintBlockHash: TBlockHash): Promise<IStatusReturn<AssetCrawler>> => {

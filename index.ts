@@ -13,6 +13,13 @@ import { traceAssetFrontier } from './src/crawler/trace-asset-frontier';
 import { traceAssetBlockAtHeight } from './src/crawler/trace-asset-block-at-height';
 import { traceSupplyBlocks } from './src/crawler/trace-supply-blocks';
 
+import { json_stringify_bigint } from './src/lib/json-stringify-bigint';
+
+import { continueTraceAndStoreAssetChains } from './src/crawler/continue-trace-and-store-asset-chains';
+import { continueTraceAndStoreNewlyMintedAssets } from './src/crawler/continue-trace-and-store-newly-minted-assets';
+import { continueTraceAndStoreNewlySuppliedAssets } from './src/crawler/continue-trace-and-store-newly-supplied-assets';
+
+
 const express = require('express');
 const app = express();
 const port = 1919;
@@ -37,6 +44,8 @@ if (typeof BANANODE_RPC_URL !== 'string') { throw Error('Environment variable BA
 import { NanoNode } from "nano-account-crawler/dist/nano-node";
 import { IStatusReturn } from 'nano-account-crawler/dist/status-return-interfaces';
 import { AssetCrawler } from 'banano-nft-crawler/dist/asset-crawler';
+import { CRAWL_KNOWN_PENDING_INTERVAL, CRAWL_UNDISCOVERED_CHANGE_INTERVAL } from './src/constants';
+import { delay_between_undiscovered_crawls, ms_undiscovered_crawls } from './src/bananode-cooldown';
 const fetch = require('node-fetch');
 export const bananode = new NanoNode(BANANODE_RPC_URL, fetch);
 
@@ -99,7 +108,7 @@ app.get('/pending_state_nfts_for_account', async (req, res) => {
       conflicting_nft_states = [];
     }
 
-    const reponse: string = JSON.stringify({
+    const reponse: string = json_stringify_bigint({
       account: account_address,
       pending_state_nfts: pgRes.rows,
       conflicting_state_nfts: conflicting_nft_states
@@ -149,7 +158,7 @@ app.get('/nfts_for_owner', async (req, res) => {
       };
     });
 
-    const reponse: string = JSON.stringify({
+    const reponse: string = json_stringify_bigint({
       owner: owner_address,
       nfts: nfts
     });
@@ -168,7 +177,7 @@ app.get('/get_supply_blocks', async (req, res) => {
       const supplyBlock = supplyBlocks[i];
     }
 
-    const reponse: string = JSON.stringify({
+    const reponse: string = json_stringify_bigint({
       issuer: issuer,
       supply_blocks: supplyBlocks
     });
@@ -184,7 +193,7 @@ app.get('/get_mint_blocks', async (req, res) => {
 
     console.log(`/supply_blocks\nissuer: ${issuer}\n`);
     const mintBlocksCrawler = new MintBlocksCrawler(issuer, supplyBlockHash)
-    await mintBlocksCrawler.crawl(bananode).catch((error) => { throw(error); );
+    await mintBlocksCrawler.crawl(bananode).catch((error) => { throw(error); } );
 
     /*
     if (mintBlocksCrawler.errors.length > 0) {
@@ -289,8 +298,37 @@ app.get('/get_asset_chain', async (req, res) => {
   });
 });
 
+const catchUndiscoveredAssetUpdatesLoop = async () => {
+  console.log("catchUndiscoveredAssetUpdatesLoop...");
+  const assetTraceStatusReturn = await continueTraceAndStoreAssetChains(bananode, pgPool);
+  if (assetTraceStatusReturn.status === "error") {
+    console.log(`IErrorReturn: ${assetTraceStatusReturn.error_type}: ${assetTraceStatusReturn.message}`);
+  }
+  console.log("catchUndiscoveredAssetUpdatesLoop!"); 
+
+  setTimeout(catchUndiscoveredMintUpdatesLoop, ms_undiscovered_crawls);
+}
+
+const catchUndiscoveredMintUpdatesLoop = async () => {
+  console.log("catchUndiscoveredMintUpdatesLoop...");
+
+  const mintTraceStatusReturn = await continueTraceAndStoreNewlyMintedAssets(bananode, pgPool);
+  if (mintTraceStatusReturn.status === "error") {
+    console.log(`IErrorReturn: ${mintTraceStatusReturn.error_type}: ${mintTraceStatusReturn.message}`);
+  }
+  await delay_between_undiscovered_crawls();
+
+  const supplyTraceStatusReturn = await continueTraceAndStoreNewlySuppliedAssets(bananode, pgPool);
+  if (supplyTraceStatusReturn.status === "error") {
+    console.log(`IErrorReturn: ${supplyTraceStatusReturn.error_type}: ${supplyTraceStatusReturn.message}`);
+  }
+  console.log("catchUndiscoveredMintUpdatesLoop!"); 
+
+  setTimeout(catchUndiscoveredMintUpdatesLoop, ms_undiscovered_crawls);
+};
 
 app.listen(port, async () => {
   console.log(`Banano Meta Node listening at port ${port}`);
+  catchUndiscoveredMintUpdatesLoop();
+  catchUndiscoveredAssetUpdatesLoop();
 });
-

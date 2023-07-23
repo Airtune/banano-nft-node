@@ -18,7 +18,7 @@ describe('MutexManager', function() {
       // sleep 500ms
       await new Promise((resolve) => setTimeout(resolve, 500));
     });
-    
+
     await run1;
     // expect mutex lock for run2 to still exist
     await expect(mutexManager["mutexByID"][mutexID]).to.be.instanceof(Mutex);

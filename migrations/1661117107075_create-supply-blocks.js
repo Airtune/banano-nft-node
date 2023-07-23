@@ -16,7 +16,7 @@ exports.up = pgm => {
     issuer_id:    { type: 'integer', references: 'accounts' },
 
     // To keep track of the supply.
-    max_supply:   { type: 'integer', notNull: true },
+    max_supply:   { type: 'string', notNull: true }, // bigint stored as string
     mint_count:   { type: 'integer', notNull: true, default: 0 },
     burn_count:   { type: 'integer', notNull: true, default: 0 },
 
@@ -24,6 +24,8 @@ exports.up = pgm => {
     // https://github.com/Airtune/banano-nft-meta-protocol/blob/main/ledger_protocol/supply_block.md#validation
     block_hash:          { type: 'string', notNull: true },
     block_height:        { type: 'integer', notNull: true },
+    // True if mint count reaches max supply or if there's a block that finishes the supply so no more NFTs can be minted
+    finished_supply:     { type: 'boolean', notNull: true, default: false },
 
     // Current head for the MintBlocksCrawler. May be ahead of the latest mint block.
     mint_crawl_at:       { type: 'datetime', notNull: false },

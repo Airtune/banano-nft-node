@@ -66,8 +66,8 @@ const getSupplyBlockHead = async (pgClient: any, issuer: TAccount): Promise<{sup
 
   if (pgRes.rows.length == 1) {
     supplyBlockCrawlAt     = row.supply_block_crawl_at;
-    supplyBlockCrawlHeight = BigInt(row.latest_checked_supply_height || 0);
-    supplyBlockCrawlHead   = row.latest_checked_supply_head;
+    supplyBlockCrawlHeight = parseInt(row.supply_block_crawl_height || 0);
+    supplyBlockCrawlHead   = row.supply_block_crawl_head;
   } else if (pgRes.rows.length > 1) {
     throw Error("Unexpected multiple rows for accounts in fetchSupplyBlockHeadFromCache. Is accounts missing a unique constraint on address?");
   }

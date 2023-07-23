@@ -4,6 +4,8 @@ const ms_between_supply_blocks = 50;
 const ms_between_issuers       = 250;
 const ms_between_mint_blocks   = 19;
 const ms_retry                 = 350;
+const ms_between_passive_asset_checks = 250;
+export const ms_undiscovered_crawls = 5000;
 let bananodeLastRequestAt: any = null;
 const BANANODE_DELAY_MULTIPLIER = parseFloat(process.env.DELAY_MULTIPLIER) || 1.0;
 
@@ -50,5 +52,15 @@ export const delay_between_mint_blocks = async (delay_multiplier: number = BANAN
 
 export const delay_between_retries = async (delay_multiplier: number = BANANODE_DELAY_MULTIPLIER) => {
   const cooldown_ms = await bananode_cooldown_ms(ms_retry * delay_multiplier);
+  delay(cooldown_ms);
+}
+
+export const delay_between_undiscovered_crawls = async (delay_multiplier: number = BANANODE_DELAY_MULTIPLIER) => {
+  const cooldown_ms = await bananode_cooldown_ms(ms_undiscovered_crawls * delay_multiplier);
+  delay(cooldown_ms);
+}
+
+export const delay_between_passive_asset_checks = async (delay_multiplier: number = BANANODE_DELAY_MULTIPLIER) => {
+  const cooldown_ms = await bananode_cooldown_ms(ms_between_passive_asset_checks * delay_multiplier);
   delay(cooldown_ms);
 }

@@ -5,8 +5,11 @@ import { bananoIpfs } from 'banano-nft-crawler/dist/lib/banano-ipfs';
 import { parseSupplyRepresentative } from "banano-nft-crawler/dist/block-parsers/supply";
 import { ISupplyBlock } from '../interfaces/supply-block';
 
-export const traceSupplyBlocks = async (bananode, issuer: TAccount, head: TBlockHash = undefined, offset: string = "0"): Promise<{ supplyBlocks: ISupplyBlock[], crawlerHead: TBlockHash, crawlerHeadHeight: number } > => {
+export const traceSupplyBlocks = async (bananode, issuer: TAccount, head: TBlockHash = undefined, offset: string = "0", ignoreMetadataRepresentatives: TAccount[] = undefined): Promise<{ supplyBlocks: ISupplyBlock[], crawlerHead: TBlockHash, crawlerHeadHeight: number } > => {
   const supplyBlocksCrawler = new SupplyBlocksCrawler(issuer, head);
+  if (Array.isArray(ignoreMetadataRepresentatives) && ignoreMetadataRepresentatives.length > 0) {
+    supplyBlocksCrawler.ignoreMetadataRepresentatives = ignoreMetadataRepresentatives;
+  }
   await supplyBlocksCrawler.crawl(bananode).catch((error) => { throw(error) });
 
   let supplyBlocks: ISupplyBlock[] = [];

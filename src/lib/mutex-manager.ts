@@ -27,6 +27,12 @@ export class MutexManager {
         }
       });
     } catch(error) {
+      // cleanup mutex
+      await this.mainMutex.runExclusive(() => {
+        if (this.mutexByID[id] && !this.mutexByID[id].isLocked()) {
+          delete this.mutexByID[id];
+        }
+      });
       throw(error);
     }
   }

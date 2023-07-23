@@ -7,7 +7,7 @@ import { DEBUG } from "../constants";
 import { IAssetBlockDb } from "./db-prepare-asset-chain";
 import { banano_ipfs } from "../lib/banano-ipfs";
 
-export const createSupplyBlockAndFirstMint = async (crawl_at: Date, pgPool: any, firstMintBlock: INanoBlock, issuer_id: number, max_supply: (null | number), db_asset_chain_frontiers: IAssetBlockDb[], asset_chain_height: number) => {
+export const createSupplyBlockAndFirstMint = async (crawl_at: Date, pgPool: any, firstMintBlock: INanoBlock, issuer_id: number, max_supply: (null | string), db_asset_chain_frontiers: IAssetBlockDb[], asset_chain_height: number, asset_crawler_block_head: TBlockHash, asset_crawler_block_height: number) => {
   if (DEBUG) {
     console.log('createSupplyBlockAndFirstMint...');
   }
@@ -90,14 +90,14 @@ export const createSupplyBlockAndFirstMint = async (crawl_at: Date, pgPool: any,
         mint_block_hash,
         mint_block_height,
         crawl_at,
-        frontier.block_height, // crawl_block_height
-        frontier.block_hash, // crawl_block_head,
+        asset_crawler_block_height, // crawl_block_height
+        asset_crawler_block_head, // crawl_block_head,
         locked,
         state,
         JSON.stringify(db_asset_chain_frontiers), // asset_chain_frontiers,
         asset_chain_height,
         frontier.block_hash, // frontier_hash
-        frontier.block_height // frontier_height
+        BigInt(frontier.block_height) // frontier_height
       ]
     );
 
