@@ -1,8 +1,7 @@
 import { AssetCrawler } from "banano-nft-crawler/dist/asset-crawler";
-import { INanoBlock, TAccount } from "nano-account-crawler/dist/nano-interfaces";
+import { INanoBlock, TAccount, TBlockHash } from "nano-account-crawler/dist/nano-interfaces";
 import { IAssetBlock } from "banano-nft-crawler/dist/interfaces/asset-block";
 import { IDbNFT } from "./continue-trace-and-store-asset-chains";
-import { IAssetBlockDb, dbPrepareAssetChain } from "../db/db-prepare-asset-chain";
 import { getBlock } from "banano-nft-crawler/dist/lib/get-block";
 import { IStatusReturn } from "nano-account-crawler/dist/status-return-interfaces";
 import { TAssetBlockType } from "banano-nft-crawler/dist/types/asset-block-type";
@@ -14,9 +13,13 @@ const getBlockSubtypeFromType = (type: TAssetBlockType): string => {
   return index >= 0 ? type.substring(0, index) : type;
 }
 
-export const continueTraceAssetChain = async (pgPool: any, bananode: any, crawlAt: Date, issuerAddress: TAccount, dbNFT: IDbNFT): Promise<IStatusReturn<void>> => {
+const get_frontier_nft_blocks = async (pgPool: any): Promise<any[]> => {
+  return [];
+};
+
+export const continueTraceAssetChain = async (pgPool: any, bananode: any, crawlAt: Date, issuerAddress: TAccount, dbNFT: IDbNFT, mint_block_hash: TBlockHash): Promise<IStatusReturn<void>> => {
   try {
-    const mintBlockStatusReturn = await getBlock(bananode, issuerAddress, dbNFT.mint_block_hash);
+    const mintBlockStatusReturn = await getBlock(bananode, issuerAddress, mint_block_hash);
     if (mintBlockStatusReturn.status === "error") {
       return mintBlockStatusReturn;
     }
@@ -24,40 +27,43 @@ export const continueTraceAssetChain = async (pgPool: any, bananode: any, crawlA
 
     const assetRepresentative = dbNFT.asset_representative;
     const assetCrawler = new AssetCrawler(issuerAddress, mintBlock);
-    const cachedAssetChainDb: IAssetBlockDb[] = dbNFT.asset_chain_frontiers;
-    // convert IAssetBlockDb[] -> IAssetBlock[]
-    const cachedAssetChain: IAssetBlock[] = cachedAssetChainDb.map((assetBlockDb: IAssetBlockDb) => {
+    
+    const frontier_nft_blocks: any[] = await get_frontier_nft_blocks(pgPool);
+    // Convert frontier_nft_blocks -> IAssetBlock[]
+    const cachedAssetChain: IAssetBlock[] = frontier_nft_blocks.map((nft_block: any) => {
       return {
-        state: assetBlockDb.state,
-        type: assetBlockDb.type,
-        account: assetBlockDb.account,
-        owner: assetBlockDb.owner,
-        locked: assetBlockDb.locked,
+        state: nft_block.state,
+        type: nft_block.type,
+        account: nft_block.account_address,
+        owner: nft_block.owner_address,
+        locked: nft_block.account_address !== nft_block.owner_address,
         traceLength: BigInt(0), // since we're doing a new trace from the cached asset chain, we set trace length to 0
-        block_link: assetBlockDb.block_link,
-        block_hash: assetBlockDb.block_hash,
-        block_height: assetBlockDb.block_height.toString(),
-        block_account: assetBlockDb.account,
-        block_representative: assetBlockDb.block_representative,
-        block_type: 'state',
-        block_subtype: getBlockSubtypeFromType(assetBlockDb.type as TAssetBlockType),
-        block_amount: assetBlockDb.block_amount.toString()
+        block_link: nft_block.block_link,
+        block_hash: nft_block.block_hash,
+        block_height: nft_block.block_height.toString(),
+        block_account: 'ban_1111111111111111111111111111111111111111111111111111hifc8npp', // TODO: unused, remove from banano-nft-crawler?
+        block_representative: nft_block.block_representative,
+        block_type: 'state', // TODO: unused, remove from banano-nft-crawler?
+        block_subtype: getBlockSubtypeFromType(nft_block.type as TAssetBlockType),
+        block_amount: nft_block.block_amount
       } as IAssetBlock;
     });
     assetCrawler.initFromCache(assetRepresentative, cachedAssetChain);
+
     // TODO: Make consistent with mintBlocksCrawler where you use
     // crawlFromFrontier instead of crawl after calling initFromCache.
-    await assetCrawler.crawl(bananode);
+    await assetCrawler.crawl(bananode); // TODO: Handle status/errors and retries
 
     //for (let i = 0; i < assetCrawler.assetChain.length; i++) {
     //  const assetBlock: IAssetBlock = assetCrawler.assetChain[i];
     //  
     //}
     // !!! co
+    // TODO: Figure out if I was supposed to do something above here?
+
     const crawl_block_height = assetCrawler.headHeight;
-    const new_db_asset_chain_frontiers = dbPrepareAssetChain(assetCrawler.assetChain.slice(-ASSET_BLOCK_FRONTIER_COUNT));
-    const asset_chain_height = dbNFT.asset_chain_height + assetCrawler.assetChain.length - cachedAssetChainDb.length;
-    await updateNFT(pgPool, dbNFT.id, crawlAt, assetCrawler.head, crawl_block_height, new_db_asset_chain_frontiers, asset_chain_height);
+    const new_asset_chain_frontiers = assetCrawler.assetChain;
+    await updateNFT(pgPool, dbNFT.id, crawlAt, assetCrawler.head, crawl_block_height, new_asset_chain_frontiers);
   } catch (error) {
     return {
       status: "error",

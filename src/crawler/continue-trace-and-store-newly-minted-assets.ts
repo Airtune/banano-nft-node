@@ -3,11 +3,10 @@ import { IErrorReturn, IStatusReturn } from "nano-account-crawler/dist/status-re
 import { NanoNode } from "nano-account-crawler/dist/nano-node";
 import { delay_between_mint_blocks, delay_between_supply_blocks } from "../bananode-cooldown";
 import { bootstrap_asset_history_from_mint_block, bootstrap_mint_blocks_from_supply_block } from "../bootstrap";
-import { ASSET_BLOCK_FRONTIER_COUNT } from "../constants";
-import { IAssetBlockDb } from "../db/db-prepare-asset-chain";
 import { createNFT } from "../db/nfts";
 import { continue_trace_mint_blocks } from "./continue-trace-mint-blocks";
 import { mainMutexManager } from "../lib/mutex-manager";
+import { IAssetBlock } from "banano-nft-crawler/dist/interfaces/asset-block";
 
 interface ISupplyBlockDb {
   id: number,
@@ -98,14 +97,13 @@ const curryContinueMintedAssetTrace = (bananode: NanoNode, pgPool: any, supplyBl
 
           const asset_crawler_block_head = assetHistoryStatusReturn.value.crawler_head;
           const asset_crawler_block_height = assetHistoryStatusReturn.value.crawler_head_height
-          const db_asset_chain: IAssetBlockDb[] = assetHistoryStatusReturn.value.db_asset_chain;
-          const db_asset_chain_frontiers = db_asset_chain.slice(-ASSET_BLOCK_FRONTIER_COUNT);
-          const asset_chain_height: number = db_asset_chain.length;
+          const asset_chain: IAssetBlock[] = assetHistoryStatusReturn.value.asset_chain;
+          const asset_chain_height: number = asset_chain.length;
 
           const mintNumber = supplyBlock.mint_count + j + offset;
-          await createNFT(pgPool, mintBlock, mintNumber, supply_block_id, db_asset_chain_frontiers, asset_chain_height, asset_crawler_block_head, asset_crawler_block_height);
+          await createNFT(pgPool, mintBlock, mintNumber, supply_block_id, asset_chain, asset_chain_height, asset_crawler_block_head, asset_crawler_block_height);
 
-          console.log(`NMA: Finished bootstrapping newly minted asset from mint block. Frontier: ${db_asset_chain[db_asset_chain.length-1].state} ${db_asset_chain[db_asset_chain.length-1].block_hash}`);
+          console.log(`NMA: Finished bootstrapping newly minted asset from mint block. Frontier: ${asset_chain[asset_chain.length-1].state} ${asset_chain[asset_chain.length-1].block_hash}`);
         });
         await delay_between_mint_blocks();
       }

@@ -4,13 +4,13 @@ import { delay_between_issuers, delay_between_passive_asset_checks, delay_betwee
 import { bootstrap_asset_history_from_mint_block, bootstrap_issuer, bootstrap_mint_blocks_from_supply_block } from "../bootstrap";
 import { ASSET_BLOCK_FRONTIER_COUNT } from "../constants";
 import { createOrUpdateAccount } from "../db/accounts";
-import { IAssetBlockDb } from "../db/db-prepare-asset-chain";
 import { createNFT } from "../db/nfts";
 import { createSupplyBlockAndFirstMint } from "../db/supply-block-and-first-mint";
 import { get_issuers } from "../get-issuers";
 import { traceSupplyBlocks } from "./trace-supply-blocks";
 import { mainMutexManager } from "../lib/mutex-manager"
 import { NanoNode } from "nano-account-crawler/dist/nano-node";
+import { IAssetBlock } from "banano-nft-crawler/dist/interfaces/asset-block";
 
 interface IAccountInfo {
   id: number,
@@ -99,7 +99,7 @@ const curryContinueSuppliedAssetTrace = (crawlAt: Date, bananode: NanoNode, pgPo
 
       const { supplyBlocks, crawlerHead, crawlerHeadHeight } = await traceSupplyBlocks(bananode, issuerAddress, mint_crawl_head, traceSupplyBlocksOffset, ignoreMetadataRepresentatives);
       // TODO: This could just be an updateAccount
-      const _issuer_id = await createOrUpdateAccount(pgPool, issuerAddress, crawlAt, crawlerHead, crawlerHeadHeight);
+      const _issuer_id = await createOrUpdateAccount(pgPool, issuerAddress, crawlAt, crawlerHead, crawlerHeadHeight, true);
 
       for (let i = 0; i < supplyBlocks.length; i++) {
         const supplyBlock = supplyBlocks[i];
@@ -122,16 +122,15 @@ const curryContinueSuppliedAssetTrace = (crawlAt: Date, bananode: NanoNode, pgPo
 
             const asset_crawler_block_head = assetHistoryStatusReturn.value.crawler_head;
             const asset_crawler_block_height = assetHistoryStatusReturn.value.crawler_head_height
-            const db_asset_chain: IAssetBlockDb[] = assetHistoryStatusReturn.value.db_asset_chain;
-            const db_asset_chain_frontiers = db_asset_chain.slice(-ASSET_BLOCK_FRONTIER_COUNT);
-            const asset_chain_height: number = db_asset_chain.length;
+            const asset_chain: IAssetBlock[] = assetHistoryStatusReturn.value.asset_chain;
+            const asset_chain_height: number = asset_chain.length;
             if (j == 0) {
-              supply_block_id = await createSupplyBlockAndFirstMint(crawlAt, pgPool, mintBlock, issuerId, maxSupply, db_asset_chain_frontiers, asset_chain_height, asset_crawler_block_head, asset_crawler_block_height);
+              supply_block_id = await createSupplyBlockAndFirstMint(crawlAt, pgPool, mintBlock, issuerId, issuerAddress, maxSupply, asset_chain, asset_chain_height, asset_crawler_block_head, asset_crawler_block_height);
             } else {
               const mintNumber = j + 1;
-              await createNFT(pgPool, mintBlock, mintNumber, supply_block_id, db_asset_chain_frontiers, asset_chain_height, asset_crawler_block_head, asset_crawler_block_height);
+              await createNFT(pgPool, mintBlock, mintNumber, supply_block_id, asset_chain, asset_chain_height, asset_crawler_block_head, asset_crawler_block_height);
             }
-            console.log(`CTASTNSA: Finished bootstrapping new asset from mint block. Frontier: ${db_asset_chain[db_asset_chain.length - 1].state} ${db_asset_chain[db_asset_chain.length - 1].block_hash}`);
+            console.log(`CTASTNSA: Finished bootstrapping new asset from mint block. Frontier: ${asset_chain[asset_chain.length - 1].state} ${asset_chain[asset_chain.length - 1].block_hash}`);
           });
           await delay_between_passive_asset_checks();
         }
