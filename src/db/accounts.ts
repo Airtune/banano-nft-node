@@ -29,7 +29,19 @@ export const createAccount = async (pgClient: any, address: TAccount, supply_blo
   }
 };
 
-export const createOrUpdateAccount = async (pgClient: any, address: TAccount, supply_block_crawl_at: (Date | null), supply_block_crawl_head: (TBlockHash | null), supply_block_crawl_height: (number | null), create_as_nft_issuer: boolean): Promise<number | undefined> => {
+export const createOrUpdateAccount = async (
+  pgClient: any, 
+  address: TAccount, 
+  supply_block_crawl_at: (Date | null), 
+  supply_block_crawl_head: (TBlockHash | null), 
+  supply_block_crawl_height: (number | null), 
+  create_as_nft_issuer: boolean
+): Promise<number | undefined> => {
+  const timeoutDuration = 5000; // 5 seconds, you can adjust based on your requirements
+
+  // Set the statement timeout
+  await pgClient.query(`SET statement_timeout TO ${timeoutDuration}`);
+
   const issuers = await get_issuers();
   let is_nft_issuer = create_as_nft_issuer || issuers.includes(address);
 
@@ -46,8 +58,11 @@ export const createOrUpdateAccount = async (pgClient: any, address: TAccount, su
     RETURNING id;`,
     [address, supply_block_crawl_at, supply_block_crawl_height, supply_block_crawl_head, is_nft_issuer]
   ).catch((error) => {
-    throw(error);
+    throw new Error(`Error executing query: ${error.message}`);
   });
+
+  // Reset the statement timeout
+  await pgClient.query('SET statement_timeout TO DEFAULT');
 
   if (typeof(pgRes) !== 'undefined' && pgRes.rows[0]) {
     return pgRes.rows[0]["id"];
