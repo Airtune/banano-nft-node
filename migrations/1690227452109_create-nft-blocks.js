@@ -16,6 +16,7 @@ exports.up = (pgm) => {
     account_address: { type: 'varchar(64)', notNull: true },
     owner_id: { type: 'integer', notNull: true, references: 'accounts' },
     owner_address: { type: 'varchar(64)', notNull: true },
+    block_account: { type: 'varchar(64)', notNull: true },
     block_hash: { type: 'varchar(64)', notNull: true }, // TBlockHash
     block_link: { type: 'varchar(64)', notNull: true }, // TBlockHash
     block_height: { type: 'integer', notNull: true },

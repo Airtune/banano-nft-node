@@ -15,6 +15,7 @@ interface ISupplyBlockDb {
   supply_block_height: number,
   supply_block_hash: TBlockHash,
   metadata_representative: TAccount,
+  ipfs_cid: string,
   max_supply: string,
   mint_count: number,
   mint_crawl_head: TBlockHash
@@ -61,30 +62,41 @@ export const continueTraceAndStoreNewlyMintedAssets = async (bananode: NanoNode,
 const curryContinueMintedAssetTrace = (bananode: NanoNode, pgPool: any, supplyBlock: ISupplyBlockDb, errorReturns: IErrorReturn[]) => {
   return async (): Promise<void> => {
     try {
-      const issuerId = supplyBlock.issuer_id;
+      //const issuerId = supplyBlock.issuer_id;
       const issuerAddress = supplyBlock.issuer_address;
       const maxSupply: bigint = BigInt(supplyBlock.max_supply);
       const mint_crawl_head = supplyBlock.mint_crawl_head;
       const mint_count = supplyBlock.mint_count;
       // TODO: Rewrite to return IStatusReturn
       // TODO: continue loop if there's errors
-      const mintBlocks: INanoBlock[] = await continue_trace_mint_blocks(bananode, issuerAddress, BigInt(supplyBlock.supply_block_height), supplyBlock.supply_block_hash, mint_crawl_head, BigInt(mint_count), maxSupply, supplyBlock.metadata_representative);
+      const mintBlocks: INanoBlock[] = await continue_trace_mint_blocks(bananode, issuerAddress, BigInt(supplyBlock.supply_block_height), supplyBlock.supply_block_hash, mint_crawl_head, BigInt(mint_count), maxSupply, supplyBlock.metadata_representative).catch((error) => { throw(error); });
       let supply_block_id: number;
 
-      const mintHeadStatusReturn = await findNFT(pgPool, supplyBlock.id, mint_crawl_head);
+      const mintHeadStatusReturn = await findNFT(pgPool, supplyBlock.id, mint_crawl_head).catch((error) => {
+        console.error(error);
+        throw Error(`Error trying to most recently minted NFT for supply block hash: ${supplyBlock.supply_block_hash}`);
+      });
       let crawlHeadNFT: INft;
 
-      if (mintHeadStatusReturn.status === "ok" && mintHeadStatusReturn.value) {
+      if (mintHeadStatusReturn.status === "ok" && mintHeadStatusReturn.value && typeof(mintHeadStatusReturn.value.mint_block_hash) === 'string') {
         crawlHeadNFT = mintHeadStatusReturn.value;
+      } else {
+        // supply blocks shouldn't be stored without a first mint block so I'm just going to throw an error
+        throw Error(`Unexpect missing crawlHeadNFT`);
       }
 
       let offset = 1;
+      let crawlHeadFound = false;
       for (let j = 0; j < mintBlocks.length; j++) {
         const mintBlock = mintBlocks[j];
         // Skip crawlHeadNFT since it's already in the database
-        if (j === 0 && crawlHeadNFT && crawlHeadNFT.mint_block_hash === mintBlock.hash) {
+        if (j === 0 && crawlHeadNFT.mint_block_hash === mintBlock.hash) {
           offset = 0;
+          crawlHeadFound = true;
           continue;
+        }
+        if (!crawlHeadFound) {
+          throw Error(`Unexpected turn of events. Why wasn't the first mint block the mint crawl head NFT? Was it because the crawl head hash was ahead of the latest mint head?`)
         }
         console.log(`NMA: bootstrapping newly minted block: ${mintBlock.hash}`);
 
@@ -101,7 +113,7 @@ const curryContinueMintedAssetTrace = (bananode: NanoNode, pgPool: any, supplyBl
           const asset_chain_height: number = asset_chain.length;
 
           const mintNumber = supplyBlock.mint_count + j + offset;
-          await createNFT(pgPool, mintBlock, mintNumber, supply_block_id, asset_chain, asset_chain_height, asset_crawler_block_head, asset_crawler_block_height);
+          await createNFT(pgPool, mintBlock, mintNumber, supply_block_id, supplyBlock.supply_block_hash, asset_chain, asset_chain_height, asset_crawler_block_head, asset_crawler_block_height);
 
           console.log(`NMA: Finished bootstrapping newly minted asset from mint block. Frontier: ${asset_chain[asset_chain.length-1].state} ${asset_chain[asset_chain.length-1].block_hash}`);
         });
@@ -128,15 +140,15 @@ const getSupplyBlocks = async (pgPool: any): Promise<IStatusReturn<ISupplyBlockD
         supply_blocks.id AS supply_block_id,
         supply_blocks.block_height AS supply_block_height,
         supply_blocks.block_hash AS supply_block_hash, 
-        accounts.address AS issuer_address, 
+        supply_blocks.issuer_address, 
         supply_blocks.issuer_id,
         supply_blocks.metadata_representative,
+        supply_blocks.ipfs_cid,
         supply_blocks.max_supply,
         supply_blocks.mint_count,
         supply_blocks.mint_crawl_head
       FROM 
         supply_blocks 
-      INNER JOIN accounts ON accounts.id = supply_blocks.issuer_id
     `;
     const { rows } = await pgPool.query(query);
     const supplyBlocks: ISupplyBlockDb[] = rows.map(row => {
@@ -147,6 +159,7 @@ const getSupplyBlocks = async (pgPool: any): Promise<IStatusReturn<ISupplyBlockD
         issuer_address: row.issuer_address,
         issuer_id: row.issuer_id,
         metadata_representative: row.metadata_representative,
+        ipfs_cid: row.ipfs_cid,
         max_supply: row.max_supply,
         mint_count: row.mint_count,
         mint_crawl_head: row.mint_crawl_head

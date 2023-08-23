@@ -54,7 +54,7 @@ export const createOrUpdateAccount = async (
       SET supply_block_crawl_at = $2,
           supply_block_crawl_height = $3,
           supply_block_crawl_head = $4,
-          is_nft_issuer = (is_nft_issuer OR $5)
+          is_nft_issuer = (accounts.is_nft_issuer OR $5)
     RETURNING id;`,
     [address, supply_block_crawl_at, supply_block_crawl_height, supply_block_crawl_head, is_nft_issuer]
   ).catch((error) => {

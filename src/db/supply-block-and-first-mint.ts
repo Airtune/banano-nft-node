@@ -6,8 +6,10 @@ import { createOrUpdateAccount, findOrCreateAccount } from "./accounts";
 import { DEBUG } from "../constants";
 import { banano_ipfs } from "../lib/banano-ipfs";
 import { IAssetBlock } from "banano-nft-crawler/dist/interfaces/asset-block";
+import { ISupplyBlock } from "../interfaces/supply-block";
 
-export const createSupplyBlockAndFirstMint = async (crawl_at: Date, pgPool: any, firstMintBlock: INanoBlock, issuer_id: number, issuer_address: TAccount, max_supply: (null | string), asset_chain: IAssetBlock[], asset_chain_height: number, asset_crawler_block_head: TBlockHash, asset_crawler_block_height: number) => {
+export const createSupplyBlockAndFirstMint = async (crawl_at: Date, pgPool: any, firstMintBlock: INanoBlock, supplyBlock: ISupplyBlock, issuer_id: number, issuer_address: TAccount, max_supply: (null | string), asset_chain: IAssetBlock[], asset_chain_height: number, asset_crawler_block_head: TBlockHash, asset_crawler_block_height: number) => {
+  const supply_block_hash: TBlockHash = supplyBlock.supply_block_hash;
   const mint_block_hash: TBlockHash = firstMintBlock.hash;
   const mint_block_height: number = parseInt(firstMintBlock.height);
   const metadata_representative: TAccount = firstMintBlock.representative as TAccount;
@@ -52,8 +54,8 @@ export const createSupplyBlockAndFirstMint = async (crawl_at: Date, pgPool: any,
       burn_count = 1;
     }
     const supplyBlockRes = await pgClient.query(
-      `INSERT INTO supply_blocks(metadata_representative, ipfs_cid, issuer_id, issuer_address, max_supply, mint_count, burn_count, block_hash, block_height, mint_crawl_at, mint_crawl_height, mint_crawl_head) VALUES ($1, $2, $3, 1, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id;`,
-      [metadata_representative, ipfs_cid, issuer_id, issuer_address, max_supply, burn_count, mint_block_hash, mint_block_height, crawl_at, mint_block_height, mint_block_hash]
+      `INSERT INTO supply_blocks(metadata_representative, ipfs_cid, issuer_id, issuer_address, max_supply, mint_count, burn_count, block_hash, mint_crawl_at, mint_crawl_height, mint_crawl_head) VALUES ($1, $2, $3, 1, $4, $5, $6, $7, $8, $9, $10) RETURNING id;`,
+      [metadata_representative, ipfs_cid, issuer_id, issuer_address, max_supply, burn_count, supply_block_hash, crawl_at, mint_block_height, mint_block_hash]
     ).catch((error) => { throw (error); });
 
     if (typeof (supplyBlockRes) !== 'undefined' && supplyBlockRes.rows[0]) {
@@ -64,13 +66,12 @@ export const createSupplyBlockAndFirstMint = async (crawl_at: Date, pgPool: any,
     const mint_number = 1;
     // Create first NFT mint
     const nftRes = await pgClient.query(
-      `INSERT INTO nfts(asset_representative, supply_block_id, mint_number, mint_block_hash, mint_block_height, crawl_at, crawl_block_height, crawl_block_head) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id;`,
+      `INSERT INTO nfts(asset_representative, supply_block_id, supply_block_hash, mint_number, crawl_at, crawl_block_height, crawl_block_head) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id;`,
       [
         asset_representative,
         supply_block_id,
+        supply_block_hash,
         mint_number,
-        mint_block_hash,
-        mint_block_height,
         crawl_at,
         asset_crawler_block_height, // crawl_block_height
         asset_crawler_block_head, // crawl_block_head,
@@ -141,7 +142,7 @@ export const createSupplyBlockAndFirstMint = async (crawl_at: Date, pgPool: any,
         asset_block.block_height,
         asset_block.account,
         asset_block.block_representative,
-        asset_block.block_amount,
+        asset_block.block_amount || '0', // TODO: Inspect when block_amount is null or undefined
       ]).catch((error) => { throw (error); });
     }
 

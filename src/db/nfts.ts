@@ -5,7 +5,7 @@ import { TAssetState } from "banano-nft-crawler/dist/types/asset-state";
 import { findOrCreateAccount } from "./accounts";
 import { IAssetBlock } from "banano-nft-crawler/dist/interfaces/asset-block";
 
-export const createNFT = async (pgPool: any, mintBlock: INanoBlock, mintNumber: number, supply_block_id: number, asset_chain: IAssetBlock[], asset_chain_height: number, asset_crawl_block_head: TBlockHash, asset_crawl_block_height: number) => {
+export const createNFT = async (pgPool: any, mintBlock: INanoBlock, mintNumber: number, supply_block_id: number, supply_block_hash: TBlockHash, asset_chain: IAssetBlock[], asset_chain_height: number, asset_crawl_block_head: TBlockHash, asset_crawl_block_height: number) => {
   const crawl_at: Date = new Date();
   const mint_block_hash: TBlockHash = mintBlock.hash;
   const mint_block_height: number = parseInt(mintBlock.height);
@@ -34,7 +34,7 @@ export const createNFT = async (pgPool: any, mintBlock: INanoBlock, mintNumber: 
         mintNumber,
         asset_representative,
         supply_block_id,
-        mint_block_hash,
+        supply_block_hash,
         mint_block_height,
         crawl_at,
         asset_crawl_block_head,

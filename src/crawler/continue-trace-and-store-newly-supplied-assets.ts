@@ -125,10 +125,10 @@ const curryContinueSuppliedAssetTrace = (crawlAt: Date, bananode: NanoNode, pgPo
             const asset_chain: IAssetBlock[] = assetHistoryStatusReturn.value.asset_chain;
             const asset_chain_height: number = asset_chain.length;
             if (j == 0) {
-              supply_block_id = await createSupplyBlockAndFirstMint(crawlAt, pgPool, mintBlock, issuerId, issuerAddress, maxSupply, asset_chain, asset_chain_height, asset_crawler_block_head, asset_crawler_block_height);
+              supply_block_id = await createSupplyBlockAndFirstMint(crawlAt, pgPool, mintBlock, supplyBlock, issuerId, issuerAddress, maxSupply, asset_chain, asset_chain_height, asset_crawler_block_head, asset_crawler_block_height);
             } else {
               const mintNumber = j + 1;
-              await createNFT(pgPool, mintBlock, mintNumber, supply_block_id, asset_chain, asset_chain_height, asset_crawler_block_head, asset_crawler_block_height);
+              await createNFT(pgPool, mintBlock, mintNumber, supply_block_id, supplyBlock.supply_block_hash, asset_chain, asset_chain_height, asset_crawler_block_head, asset_crawler_block_height);
             }
             console.log(`CTASTNSA: Finished bootstrapping new asset from mint block. Frontier: ${asset_chain[asset_chain.length - 1].state} ${asset_chain[asset_chain.length - 1].block_hash}`);
           });
