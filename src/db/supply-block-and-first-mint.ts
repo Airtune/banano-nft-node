@@ -10,6 +10,7 @@ import { ISupplyBlock } from "../interfaces/supply-block";
 
 export const createSupplyBlockAndFirstMint = async (crawl_at: Date, pgPool: any, firstMintBlock: INanoBlock, supplyBlock: ISupplyBlock, issuer_id: number, issuer_address: TAccount, max_supply: (null | string), asset_chain: IAssetBlock[], asset_chain_height: number, asset_crawler_block_head: TBlockHash, asset_crawler_block_height: number) => {
   const supply_block_hash: TBlockHash = supplyBlock.supply_block_hash;
+  const supply_block_height: number = parseInt(supplyBlock.supply_block_height);
   const mint_block_hash: TBlockHash = firstMintBlock.hash;
   const mint_block_height: number = parseInt(firstMintBlock.height);
   const metadata_representative: TAccount = firstMintBlock.representative as TAccount;
@@ -54,8 +55,8 @@ export const createSupplyBlockAndFirstMint = async (crawl_at: Date, pgPool: any,
       burn_count = 1;
     }
     const supplyBlockRes = await pgClient.query(
-      `INSERT INTO supply_blocks(metadata_representative, ipfs_cid, issuer_id, issuer_address, max_supply, mint_count, burn_count, block_hash, mint_crawl_at, mint_crawl_height, mint_crawl_head) VALUES ($1, $2, $3, 1, $4, $5, $6, $7, $8, $9, $10) RETURNING id;`,
-      [metadata_representative, ipfs_cid, issuer_id, issuer_address, max_supply, burn_count, supply_block_hash, crawl_at, mint_block_height, mint_block_hash]
+      `INSERT INTO supply_blocks(metadata_representative, ipfs_cid, issuer_id, issuer_address, max_supply, mint_count, burn_count, block_hash, block_height, mint_crawl_at, mint_crawl_height, mint_crawl_head) VALUES ($1, $2, $3, 1, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id;`,
+      [metadata_representative, ipfs_cid, issuer_id, issuer_address, max_supply, burn_count, supply_block_hash, supply_block_height, crawl_at, mint_block_height, mint_block_hash]
     ).catch((error) => { throw (error); });
 
     if (typeof (supplyBlockRes) !== 'undefined' && supplyBlockRes.rows[0]) {

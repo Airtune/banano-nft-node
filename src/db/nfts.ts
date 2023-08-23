@@ -24,10 +24,9 @@ export const createNFT = async (pgPool: any, mintBlock: INanoBlock, mintNumber: 
         asset_representative,
         supply_block_id,
         supply_block_hash,
-        mint_block_height,
         crawl_at,
         crawl_block_head,
-        crawl_block_height) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        crawl_block_height) VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING id;
       `,
       [
@@ -35,7 +34,6 @@ export const createNFT = async (pgPool: any, mintBlock: INanoBlock, mintNumber: 
         asset_representative,
         supply_block_id,
         supply_block_hash,
-        mint_block_height,
         crawl_at,
         asset_crawl_block_head,
         asset_crawl_block_height
@@ -89,7 +87,7 @@ export const createNFT = async (pgPool: any, mintBlock: INanoBlock, mintNumber: 
           assetBlock.block_height,
           assetBlock.account,
           assetBlock.block_representative,
-          assetBlock.block_amount
+          assetBlock.block_subtype === 'change' ? '0' : assetBlock.block_amount
         ]
       )
     }
