@@ -14,7 +14,9 @@ import { continueTraceAndStoreNewlySuppliedAssets } from './src/crawler/continue
 
 
 const express = require('express');
+const cors = require('cors');
 const app = express();
+app.use(cors());
 const port = 1919;
 
 const pg = require('pg');
