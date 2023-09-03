@@ -1,6 +1,6 @@
 {
   "name": "banano-nft-node",
-  "version": "1.2.2",
+  "version": "1.3.0",
   "description": "NFT node that crawls Banano ledger to tract NFTs and provides an RPC.",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -13,9 +13,9 @@
   "author": "Airtune",
   "license": "MIT",
   "dependencies": {
-    "@bananocoin/bananojs": "^2.6.1",
+    "@bananocoin/bananojs": "^2.10.0",
     "async-mutex": "^0.3.2",
-    "banano-nft-crawler": "2.1.0",
+    "banano-nft-crawler": "^2.1.1",
     "dotenv": "^16.0.3",
     "express": "^4.18.1",
     "nano-account-crawler": "2.0.1",
