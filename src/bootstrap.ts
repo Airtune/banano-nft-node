@@ -66,7 +66,7 @@ export const bootstrap_issuer = async (nanoNode: NanoNode, pgPool: any, issuerAd
           const asset_chain: IAssetBlock[] = assetHistoryStatusReturn.value.asset_chain;
           const asset_chain_height: number = asset_chain.length;
           if (j == 0) {
-            supply_block_id = await createSupplyBlockAndFirstMint(crawlAt, pgPool, mintBlock, supplyBlock, issuer_id, issuerAddress, supplyBlock.max_supply, asset_chain, asset_chain_height, asset_crawler_block_head, asset_crawler_block_height).catch((error) => { throw (error); });
+            supply_block_id = await createSupplyBlockAndFirstMint(crawlAt, pgPool, mintBlock, supplyBlock, issuer_id, issuerAddress, supplyBlock.max_supply, asset_chain, asset_crawler_block_head, asset_crawler_block_height).catch((error) => { throw (error); });
           } else {
             const mintNumber = j + 1;
             await createNFT(pgPool, mintBlock, mintNumber, supply_block_id, supplyBlock.supply_block_hash, asset_chain, asset_chain_height, asset_crawler_block_head, asset_crawler_block_height).catch((error) => { throw (error); });

@@ -6,13 +6,6 @@ import { MintBlocksCrawler } from 'banano-nft-crawler/dist/mint-blocks-crawler';
 
 // Typescript types and interfaces
 import { INanoBlock, TAccount, TBlockHash } from 'nano-account-crawler/dist/nano-interfaces';
-import { IAssetBlock } from 'banano-nft-crawler/dist/interfaces/asset-block';
-
-import { traceAssetChain } from './src/crawler/trace-asset-chain';
-import { traceAssetFrontier } from './src/crawler/trace-asset-frontier';
-import { traceAssetBlockAtHeight } from './src/crawler/trace-asset-block-at-height';
-import { traceSupplyBlocks } from './src/crawler/trace-supply-blocks';
-
 import { json_stringify_bigint } from './src/lib/json-stringify-bigint';
 
 import { continueTraceAndStoreAssetChains } from './src/crawler/continue-trace-and-store-asset-chains';
@@ -27,11 +20,6 @@ const port = 1919;
 const pg = require('pg');
 const pgPool = new pg.Pool();
 
-// nfts that has new blocks that are not yet crawled
-const mintBlockHashesForNFTsPendingCrawl: TBlockHash[] = [];
-// mints that have been discovered but not yet crawled
-const mintBlockHashesForPendingMints: TBlockHash[] = [];
-
 pgPool.on('error', (err, client) => {
   console.error('Unexpected error on idle client', err);
   process.exit(-1);
@@ -42,9 +30,6 @@ if (typeof BANANODE_RPC_URL !== 'string') { throw Error('Environment variable BA
 // TODO: check bananode is available
 
 import { NanoNode } from "nano-account-crawler/dist/nano-node";
-import { IStatusReturn } from 'nano-account-crawler/dist/status-return-interfaces';
-import { AssetCrawler } from 'banano-nft-crawler/dist/asset-crawler';
-import { CRAWL_KNOWN_PENDING_INTERVAL, CRAWL_UNDISCOVERED_CHANGE_INTERVAL } from './src/constants';
 import { delay_between_undiscovered_crawls, ms_undiscovered_crawls } from './src/bananode-cooldown';
 const fetch = require('node-fetch');
 export const bananode = new NanoNode(BANANODE_RPC_URL, fetch);
@@ -68,11 +53,13 @@ const catchAndRespondWithError = async (res, fn) => {
 // action and the other ones will be cancelled. E.g. one NFT in the state atomic_swap_receivable
 // and another in the state atomic_swap_payable that both expect a block at the same height
 // in the account.
+/*
 app.get('/pending_state_nfts_for_account', async (req, res) => {
   await catchAndRespondWithError(res, async () => {
     // NB: Account is different from owner. E.g. during an atomic swap the paying account that
     // has not payed yet is the account for the NFT but is not the owner yet.
     const account_address: TAccount = req.query['account'];
+    // TODO: Review due to refactor
     const pgRes = await pgPool.query(`
       SELECT supply_blocks.metadata_representative AS metadata_representative,
              supply_blocks.ipfs_cid AS ipfs_cid,
@@ -82,10 +69,10 @@ app.get('/pending_state_nfts_for_account', async (req, res) => {
              supply_blocks.burn_count AS burn_count,
              nfts.state AS state,
              nfts.mint_number AS mint_number,
-             nfts.frontier_height AS frontier_height,
-             nfts.frontier_hash AS frontier_hash,
+             nfts.crawl_at AS crawl_at,
+             nfts.crawl_block_height AS crawl_block_height,
+             nfts.crawl_block_head AS crawl_block_head,
              nfts.asset_representative AS asset_representative,
-             nfts.mint_block_hash AS mint_block_hash,
              issuer_account.address AS issuer_address
       FROM nfts
       INNER JOIN supply_blocks ON nfts.supply_block_id = supply_blocks.id
@@ -108,84 +95,232 @@ app.get('/pending_state_nfts_for_account', async (req, res) => {
       conflicting_nft_states = [];
     }
 
-    const reponse: string = json_stringify_bigint({
+    const response: string = json_stringify_bigint({
       account: account_address,
       pending_state_nfts: pgRes.rows,
       conflicting_state_nfts: conflicting_nft_states
     });
 
-    res.send(reponse);
+    res.send(response);
   });
 });
+*/
 
-app.get('/nfts_for_owner', async (req, res) => {
+// Get all of the nfts owned by an address
+app.get('/nftnode/owner/:address/nfts', async (req, res) => {
   await catchAndRespondWithError(res, async () => {
-    const owner_address: TAccount = req.query['owner'];
-    const pgRes = await pgPool.query(`
-      SELECT supply_blocks.metadata_representative AS metadata_representative,
-             supply_blocks.ipfs_cid AS ipfs_cid,
-             supply_blocks.block_hash AS supply_block_hash,
-             supply_blocks.max_supply AS max_supply,
-             supply_blocks.mint_count AS mint_count,
-             supply_blocks.burn_count AS burn_count,
-             nfts.mint_number AS mint_number,
-             nfts.frontier_height AS frontier_height,
-             nfts.frontier_hash AS frontier_hash,
-             nfts.asset_representative AS asset_representative,
-             nfts.mint_block_hash AS mint_block_hash,
-             issuer_account.address AS issuer_address
-      FROM nfts
+    const owner_address: TAccount = req.params.address;
+    // TODO: Validate owner_address
+    const query = `
+      SELECT DISTINCT ON (nft_blocks.nft_id)
+        nft_blocks.account_address AS account_address,
+        nft_blocks.owner_address AS owner_address,
+        nft_blocks.state AS state,
+        nft_blocks.type AS type,
+        nfts.mint_number AS mint_number,
+        nfts.supply_block_hash AS supply_block_hash,
+        nfts.asset_representative AS asset_representative,
+        supply_blocks.metadata_representative AS metadata_representative,
+        supply_blocks.issuer_address AS issuer_address,
+        supply_blocks.max_supply AS max_supply,
+        supply_blocks.mint_count AS mint_count,
+        supply_blocks.burn_count AS burn_count,
+        supply_blocks.ipfs_cid AS ipfs_cid
+      FROM nft_blocks
+      INNER JOIN nfts ON nft_blocks.nft_id = nfts.id
       INNER JOIN supply_blocks ON nfts.supply_block_id = supply_blocks.id
-      INNER JOIN accounts AS issuer_account ON issuer_account.id = supply_blocks.issuer_id
-      INNER JOIN accounts AS owner_account ON owner_account.id = nfts.owner_id
-      WHERE owner_account.address = $1
-      ORDER BY nfts.frontier_height;
-    `, [owner_address]).catch((error) => { throw(error) });
+      WHERE nft_blocks.owner_address = $1
+      ORDER BY nft_blocks.nft_id, nft_blocks.nft_block_height DESC
+    `;
+
+    const values = [owner_address];
+
+    const pgRes = await pgPool.query(query, values).catch((error) => { throw(error); });
 
     const nfts = pgRes.rows.map((row: any) => {
       return {
-        owner_address:                  row.owner_address,
-        metadata_representative:        row.metadata_representative,
-        ipfs_cid:                       row.ipfs_cid,
-        supply_block_hash:              row.supply_block_hash,
-        max_supply:                     row.max_supply,
-        mint_count:                     row.mint_count,
-        burn_count:                     row.burn_count,
-        issuer_address:                 row.issuer_address,
-        asset_representative:           row.asset_representative,
-        mint_block_hash:                row.mint_block_hash,
-        mint_number:                    row.mint_number
+        account_address: row.account_address,
+        owner_address: row.owner_address,
+        state: row.state,
+        type: row.type,
+        mint_number: row.mint_number,
+        supply_block_hash: row.supply_block_hash,
+        asset_representative: row.asset_representative,
+        metadata_representative: row.metadata_representative,
+        issuer_address: row.issuer_address,
+        max_supply: row.max_supply,
+        mint_count: row.mint_count,
+        burn_count: row.burn_count,
+        ipfs_cid: row.ipfs_cid
       };
     });
 
-    const reponse: string = json_stringify_bigint({
+    const response: string = json_stringify_bigint({
       owner: owner_address,
       nfts: nfts
     });
 
-    res.send(reponse);
+    res.send(response);
   });
 });
 
-// Realtime crawling
-app.get('/get_supply_blocks', async (req, res) => {
+// Get all of the supply_blocks from an issuer address
+app.get('/nftnode/issuer/:address/supply_blocks', async (req, res) => {
   await catchAndRespondWithError(res, async () => {
-    const issuer: TAccount = req.query['issuer'] as TAccount;
-    const { supplyBlocks, crawlerHead, crawlerHeadHeight } = await traceSupplyBlocks(bananode, issuer);
+    const issuer_address: TAccount = req.params.address;
+    // TODO: Validate issuer_address
+    const query = `
+      SELECT
+        id,
+        metadata_representative,
+        ipfs_cid,
+        max_supply,
+        mint_count,
+        burn_count,
+        block_hash AS supply_block_hash,
+        block_height AS supply_block_height
+      FROM supply_blocks
+      WHERE supply_blocks.issuer_address = $1
+      ORDER BY supply_blocks.block_height DESC
+    `;
 
-    for (let i = 0; i < supplyBlocks.length; i++) {
-      const supplyBlock = supplyBlocks[i];
-    }
+    const values = [issuer_address];
 
-    const reponse: string = json_stringify_bigint({
-      issuer: issuer,
-      supply_blocks: supplyBlocks
+    const pgRes = await pgPool.query(query, values).catch((error) => { throw(error); });
+
+    const supply_blocks = pgRes.rows.map((row: any) => {
+      return {
+        metadata_representative: row.metadata_representative,
+        ipfs_cid: row.ipfs_cid,
+        max_supply: row.max_supply,
+        mint_count: row.mint_count,
+        burn_count: row.burn_count,
+        supply_block_hash: row.supply_block_hash,
+        supply_block_height: row.supply_block_height
+      };
     });
 
-    res.send(reponse);
+    const response: string = json_stringify_bigint({
+      issuer: issuer_address,
+      supply_blocks: supply_blocks
+    });
+
+    res.send(response);
   });
 });
 
+// Get all of the nfts minted from a supply_block_hash
+app.get('/nftnode/supply_block/:supply_block_hash/nfts', async (req, res) => {
+  await catchAndRespondWithError(res, async () => {
+    const supply_block_hash: TBlockHash = req.params.supply_block_hash;
+    // TODO: Validate supply_block_hash is an upper case hex string of correct length
+    const query = `
+      SELECT DISTINCT ON (nft_blocks.nft_id)
+        nft_blocks.account_address AS account_address,
+        nft_blocks.owner_address AS owner_address,
+        nft_blocks.state AS state,
+        nft_blocks.type AS type,
+        nfts.mint_number AS mint_number,
+        nfts.supply_block_hash AS supply_block_hash,
+        nfts.asset_representative AS asset_representative,
+        supply_blocks.metadata_representative AS metadata_representative,
+        supply_blocks.issuer_address AS issuer_address,
+        supply_blocks.max_supply AS max_supply,
+        supply_blocks.mint_count AS mint_count,
+        supply_blocks.burn_count AS burn_count,
+        supply_blocks.ipfs_cid AS ipfs_cid
+      FROM nft_blocks
+      INNER JOIN nfts ON nft_blocks.nft_id = nfts.id
+      INNER JOIN supply_blocks ON nfts.supply_block_id = supply_blocks.id AND supply_blocks.block_hash = $1
+      ORDER BY nft_blocks.nft_id, nft_blocks.nft_block_height DESC
+    `;
+
+    const values = [supply_block_hash];
+
+    const pgRes = await pgPool.query(query, values).catch((error) => { throw(error); });
+
+    const nfts = pgRes.rows.map((row: any) => {
+      return {
+        account_address: row.account_address,
+        owner_address: row.owner_address,
+        state: row.state,
+        type: row.type,
+        mint_number: row.mint_number,
+        supply_block_hash: row.supply_block_hash,
+        asset_representative: row.asset_representative,
+        metadata_representative: row.metadata_representative,
+        issuer_address: row.issuer_address,
+        max_supply: row.max_supply,
+        mint_count: row.mint_count,
+        burn_count: row.burn_count,
+        ipfs_cid: row.ipfs_cid
+      };
+    });
+
+    const response: string = json_stringify_bigint({
+      supply_block_hash: supply_block_hash,
+      nfts: nfts
+    });
+
+    res.send(response);
+  });
+});
+
+// Get the transaction history for an nft
+app.get('/nftnode/nft/:asset_representative/history', async (req, res) => {
+  await catchAndRespondWithError(res, async () => {
+    const asset_representative: TAccount = req.params.asset_representative;
+    // TODO: Validate asset_representative
+    const query = `
+      SELECT
+        nft_blocks.account_address AS next_crawl_address,
+        nft_blocks.owner_address AS owner_address,
+        nft_blocks.state AS state,
+        nft_blocks.type AS type,
+        nft_blocks.nft_block_height AS nft_block_height,
+        nft_blocks.block_account AS block_account,
+        nft_blocks.block_hash AS block_hash,
+        nft_blocks.block_link AS block_link,
+        nft_blocks.block_height AS block_height,
+        nft_blocks.block_representative AS block_representative,
+        nft_blocks.block_amount AS block_amount
+
+      FROM nft_blocks
+      INNER JOIN nfts ON nft_blocks.nft_id = nfts.id AND nfts.asset_representative = $1
+      ORDER BY nft_blocks.nft_block_height DESC
+    `;
+
+    const values = [asset_representative];
+
+    const pgRes = await pgPool.query(query, values).catch((error) => { throw(error); });
+
+    const nft_history = pgRes.rows.map((row: any) => {
+      return {
+        account_address: row.account_address,
+        owner_address: row.owner_address,
+        state: row.state,
+        type: row.type,
+        nft_block_height: row.nft_block_height,
+        block_account: row.block_account,
+        block_hash: row.block_hash,
+        block_link: row.block_link,
+        block_height: row.block_height,
+        block_representative: row.block_representative,
+        block_amount: row.block_amount
+      };
+    });
+
+    const response: string = json_stringify_bigint({
+      asset_representative: asset_representative,
+      nft_history: nft_history
+    });
+
+    res.send(response);
+  });
+});
+
+// TODO: refactor fetch from nft_blocks
+/*
 app.get('/get_mint_blocks', async (req, res) => {
   await catchAndRespondWithError(res, async () => {
     const issuer: TAccount = req.query['issuer'] as TAccount;
@@ -194,12 +329,6 @@ app.get('/get_mint_blocks', async (req, res) => {
     console.log(`/supply_blocks\nissuer: ${issuer}\n`);
     const mintBlocksCrawler = new MintBlocksCrawler(issuer, supplyBlockHash)
     await mintBlocksCrawler.crawl(bananode).catch((error) => { throw(error); } );
-
-    /*
-    if (mintBlocksCrawler.errors.length > 0) {
-      // TODO: Log errors
-    }
-    */
 
     let mints: object[] = [];
 
@@ -211,15 +340,18 @@ app.get('/get_mint_blocks', async (req, res) => {
       })
     }
 
-    const reponse: string = JSON.stringify({
+    const response: string = JSON.stringify({
       mints: mints
     });
 
-    res.send(reponse);
+    res.send(response);
   });
 });
+*/
 
 // TRACE
+// TODO: refactor to use nft_blocks
+/*
 app.get('/get_asset_frontier', async (req, res) => {
   await catchAndRespondWithError(res, async () => {
     // TODO: validate params !!!
@@ -227,7 +359,7 @@ app.get('/get_asset_frontier', async (req, res) => {
     const mintBlockHash: TBlockHash = req.query['mint_block_hash'] as TBlockHash;
 
     const frontier = await traceAssetFrontier(bananode, issuer, mintBlockHash).catch((error) => { throw(error); });
-    const reponse: string = JSON.stringify({
+    const response: string = JSON.stringify({
       block_hash: frontier.block_hash,
       account:    frontier.account,
       owner:      frontier.owner,
@@ -236,92 +368,54 @@ app.get('/get_asset_frontier', async (req, res) => {
       type:       frontier.type
     });
 
-    res.send(reponse);
-  });
-});
-
-app.get('/get_asset_at_height', async (req, res) => {
-  await catchAndRespondWithError(res, async () => {
-    // TODO: validate params !!!
-    const issuer: TAccount          = req.query['issuer'] as TAccount;
-    const mintBlockHash: TBlockHash = req.query['mint_block_hash'] as TBlockHash;
-    const height: number            = parseInt(req.query['height']);
-
-    const assetBlock = await traceAssetBlockAtHeight(bananode, issuer, mintBlockHash, height).catch((error) => { throw(error); });
-
-    const reponse: string = JSON.stringify({
-      block_hash: assetBlock.block_hash,
-      account:    assetBlock.account,
-      owner:      assetBlock.owner,
-      locked:     assetBlock.locked,
-      state:      assetBlock.state,
-      type:       assetBlock.type
-    });
-
-    res.send(reponse);
-  });
-});
-
-app.get('/get_asset_chain', async (req, res) => {
-  await catchAndRespondWithError(res, async () => {
-    // TODO: validate params !!!
-    const issuer: TAccount          = req.query['issuer'] as TAccount;
-    const mintBlockHash: TBlockHash = req.query['mint_block_hash'] as TBlockHash;
-
-    const assetCrawlerStatus: IStatusReturn<AssetCrawler> = await traceAssetChain(bananode, issuer, mintBlockHash);
-    if (assetCrawlerStatus.status === "error") {
-      res.status(400).send(`Error: ${assetCrawlerStatus.error_type} ${assetCrawlerStatus.message}`);
-      return;
-    }
-    const assetCrawler = assetCrawlerStatus.value;
-    if (!assetCrawler) {
-      res.status(400).send(`Error: Unable to traceAssetChain`);
-      return;
-    }
-
-    const assetChain = assetCrawler.assetChain.map((assetBlock: IAssetBlock) => {
-      return {
-        account:    assetBlock.account,
-        owner:      assetBlock.owner,
-        locked:     assetBlock.locked,
-        block_hash: assetBlock.block_hash,
-        state:      assetBlock.state,
-        type:       assetBlock.type
-      };
-    });
-
-    const response: string = JSON.stringify({
-      asset_chain: assetChain
-    });
-
     res.send(response);
   });
 });
+*/
 
 const catchUndiscoveredAssetUpdatesLoop = async () => {
-  console.log("catchUndiscoveredAssetUpdatesLoop...");
-  const assetTraceStatusReturn = await continueTraceAndStoreAssetChains(bananode, pgPool);
-  if (assetTraceStatusReturn.status === "error") {
-    console.log(`IErrorReturn: ${assetTraceStatusReturn.error_type}: ${assetTraceStatusReturn.message}`);
+  console.log("CUASUL: catchUndiscoveredAssetUpdatesLoop...");
+  try {
+    const assetTraceStatusReturn = await continueTraceAndStoreAssetChains(bananode, pgPool);
+    if (assetTraceStatusReturn.status === "error") {
+      console.log(`IErrorReturn: ${assetTraceStatusReturn.error_type}: ${assetTraceStatusReturn.message}`);
+    }
+  } catch (error) {
+    console.log(`assetTraceStatusReturn error:`);
+    console.error(error);
   }
-  console.log("catchUndiscoveredAssetUpdatesLoop!"); 
+  
+  console.log("CUASUL: catchUndiscoveredAssetUpdatesLoop!"); 
 
-  setTimeout(catchUndiscoveredMintUpdatesLoop, ms_undiscovered_crawls);
+  setTimeout(catchUndiscoveredAssetUpdatesLoop, ms_undiscovered_crawls);
 }
 
 const catchUndiscoveredMintUpdatesLoop = async () => {
   console.log("catchUndiscoveredMintUpdatesLoop...");
 
-  const mintTraceStatusReturn = await continueTraceAndStoreNewlyMintedAssets(bananode, pgPool);
-  if (mintTraceStatusReturn.status === "error") {
-    console.log(`IErrorReturn: ${mintTraceStatusReturn.error_type}: ${mintTraceStatusReturn.message}`);
+  try {
+    const supplyTraceStatusReturn = await continueTraceAndStoreNewlySuppliedAssets(bananode, pgPool);
+    if (supplyTraceStatusReturn.status === "error") {
+      console.log(`IErrorReturn: ${supplyTraceStatusReturn.error_type}: ${supplyTraceStatusReturn.message}`);
+    }
+  } catch (error) {
+    console.log(`supplyTraceStatusReturn error:`);
+    console.error(error);
   }
+
   await delay_between_undiscovered_crawls();
 
-  const supplyTraceStatusReturn = await continueTraceAndStoreNewlySuppliedAssets(bananode, pgPool);
-  if (supplyTraceStatusReturn.status === "error") {
-    console.log(`IErrorReturn: ${supplyTraceStatusReturn.error_type}: ${supplyTraceStatusReturn.message}`);
+  try {
+    // TODO: Optimize this by supplying supply blocks from continueTraceAndStoreNewlySuppliedAssets
+    const mintTraceStatusReturn = await continueTraceAndStoreNewlyMintedAssets(bananode, pgPool);
+    if (mintTraceStatusReturn.status === "error") {
+      console.log(`IErrorReturn: ${mintTraceStatusReturn.error_type}: ${mintTraceStatusReturn.message}`);
+    }
+  } catch (error) {
+    console.log(`mintTraceStatusReturn error:`);
+    console.error(error);
   }
+  
   console.log("catchUndiscoveredMintUpdatesLoop!"); 
 
   setTimeout(catchUndiscoveredMintUpdatesLoop, ms_undiscovered_crawls);

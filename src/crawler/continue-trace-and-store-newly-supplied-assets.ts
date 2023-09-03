@@ -27,6 +27,7 @@ interface IAccountSupplyBlockInfo {
 // from the latest known block to find new supply blocks.
 // Note that it can return { status: "ok", value: [...] } where the value is a list of errors.
 export const continueTraceAndStoreNewlySuppliedAssets = async (bananode: NanoNode, pgPool: any): Promise<IStatusReturn<IErrorReturn[]>> => {
+  console.log('continueTraceAndStoreNewlySuppliedAssets...');
   const errorReturns: IErrorReturn[] = [];
 
   try {
@@ -39,7 +40,7 @@ export const continueTraceAndStoreNewlySuppliedAssets = async (bananode: NanoNod
     const issuerInfos: IAccountInfo[] = issuerInfosResult.value;
 
     for (let j = 0; j < issuers.length; j++) {
-      const issuerAddress = issuers[j];
+      const issuerAddress = issuers[j].toLowerCase() as TAccount;
       if (issuerInfos.findIndex((_issuerInfo) => { return _issuerInfo.address == issuerAddress }) === -1) {
         console.log(JSON.stringify(issuerInfos));
         console.log(`CTASTNSA: issuer not in db: ${issuerAddress}`);
@@ -58,11 +59,13 @@ export const continueTraceAndStoreNewlySuppliedAssets = async (bananode: NanoNod
       const issuerInfo: IAccountInfo = issuerInfos[i];
       const issuerId = issuerInfo.id;
       const issuerAddress = issuerInfo.address;
+      const supply_block_crawl_head = issuerInfo.supply_block_crawl_head;
 
-      const continueSuppliedAssetTrace = curryContinueSuppliedAssetTrace(crawlAt, bananode, pgPool, errorReturns, issuerId, issuerAddress);
+      const continueSuppliedAssetTrace = curryContinueSuppliedAssetTrace(crawlAt, bananode, pgPool, errorReturns, issuerId, issuerAddress, supply_block_crawl_head);
       await mainMutexManager.runExclusive(issuerAddress, continueSuppliedAssetTrace);
     }
 
+    console.log('continueTraceAndStoreNewlySuppliedAssets!');
     return { status: "ok", value: errorReturns };
   } catch (error) {
     const errorReturn: IErrorReturn = {
@@ -78,7 +81,7 @@ export const continueTraceAndStoreNewlySuppliedAssets = async (bananode: NanoNod
   }
 }
 
-const curryContinueSuppliedAssetTrace = (crawlAt: Date, bananode: NanoNode, pgPool: any, errorReturns: IErrorReturn[], issuerId: number, issuerAddress: TAccount) => {
+const curryContinueSuppliedAssetTrace = (crawlAt: Date, bananode: NanoNode, pgPool: any, errorReturns: IErrorReturn[], issuerId: number, issuerAddress: TAccount, supply_block_crawl_head?: TBlockHash) => {
   return async (): Promise<void> => {
     try {
       const accountSupplyBlockInfoStatusReturn = await getAccountSupplyBlockInfo(pgPool, issuerId);
@@ -89,19 +92,20 @@ const curryContinueSuppliedAssetTrace = (crawlAt: Date, bananode: NanoNode, pgPo
       }
 
       const accountSupplyBlockInfo: IAccountSupplyBlockInfo = accountSupplyBlockInfoStatusReturn.value;
-      const mint_crawl_head: (TBlockHash | null) = accountSupplyBlockInfo.mint_crawl_head;
       const ignoreMetadataRepresentatives: TAccount[] = accountSupplyBlockInfo.metadata_representatives;
       // TODO: Fix ambiguity between ISupplyBlock (from nano-account-crawler lib) and supply_blocks from the database.
-      let traceSupplyBlocksOffset: string = "0";
-      if (mint_crawl_head) {
+      let traceSupplyBlocksOffset: ("0" | "-1") = "0";
+      if (supply_block_crawl_head) {
         traceSupplyBlocksOffset = "-1";
       }
 
-      const { supplyBlocks, crawlerHead, crawlerHeadHeight } = await traceSupplyBlocks(bananode, issuerAddress, mint_crawl_head, traceSupplyBlocksOffset, ignoreMetadataRepresentatives);
+      const { supplyBlocks, crawlerHead, crawlerHeadHeight } = await traceSupplyBlocks(bananode, issuerAddress, supply_block_crawl_head, traceSupplyBlocksOffset, ignoreMetadataRepresentatives);
       // TODO: This could just be an updateAccount
       const _issuer_id = await createOrUpdateAccount(pgPool, issuerAddress, crawlAt, crawlerHead, crawlerHeadHeight, true);
 
+      let skip_supply_block_i: number | undefined = undefined;
       for (let i = 0; i < supplyBlocks.length; i++) {
+        if (skip_supply_block_i === i) { continue; }
         const supplyBlock = supplyBlocks[i];
         const maxSupply = supplyBlock.max_supply;
         console.log(`CTASTNSA: bootstrapping new supply block: ${supplyBlock.supply_block_hash}, ${supplyBlock.metadata_representative}`);
@@ -110,7 +114,9 @@ const curryContinueSuppliedAssetTrace = (crawlAt: Date, bananode: NanoNode, pgPo
         const mintBlocks: INanoBlock[] = await bootstrap_mint_blocks_from_supply_block(bananode, issuerAddress, supplyBlock.supply_block_hash);
         let supply_block_id: number;
 
+        let mintNumber: number = 1;
         for (let j = 0; j < mintBlocks.length; j++) {
+          if (skip_supply_block_i === i) { continue; }
           const mintBlock = mintBlocks[j];
           console.log(`CTASTNSA: bootstrapping new mint block: ${mintBlock.hash}`);
           await mainMutexManager.runExclusive(mintBlock.hash, async () => {
@@ -125,9 +131,15 @@ const curryContinueSuppliedAssetTrace = (crawlAt: Date, bananode: NanoNode, pgPo
             const asset_chain: IAssetBlock[] = assetHistoryStatusReturn.value.asset_chain;
             const asset_chain_height: number = asset_chain.length;
             if (j == 0) {
-              supply_block_id = await createSupplyBlockAndFirstMint(crawlAt, pgPool, mintBlock, supplyBlock, issuerId, issuerAddress, maxSupply, asset_chain, asset_chain_height, asset_crawler_block_head, asset_crawler_block_height);
+              // TODO: Replace try/catch with IStatusReturn
+              try {
+                supply_block_id = await createSupplyBlockAndFirstMint(crawlAt, pgPool, mintBlock, supplyBlock, issuerId, issuerAddress, maxSupply, asset_chain, asset_crawler_block_head, asset_crawler_block_height);
+              } catch (error) {
+                skip_supply_block_i = i;
+                console.error(error);
+              }
             } else {
-              const mintNumber = j + 1;
+              mintNumber += 1;
               await createNFT(pgPool, mintBlock, mintNumber, supply_block_id, supplyBlock.supply_block_hash, asset_chain, asset_chain_height, asset_crawler_block_head, asset_crawler_block_height);
             }
             console.log(`CTASTNSA: Finished bootstrapping new asset from mint block. Frontier: ${asset_chain[asset_chain.length - 1].state} ${asset_chain[asset_chain.length - 1].block_hash}`);
@@ -153,7 +165,7 @@ const curryContinueSuppliedAssetTrace = (crawlAt: Date, bananode: NanoNode, pgPo
 
 const getAccountInfos = async (pgPool: any, addresses: string[]): Promise<IStatusReturn<IAccountInfo[]>> => {
   try {
-    const { rows } = await pgPool.query('SELECT address, id, supply_block_crawl_head FROM accounts WHERE address = ANY($1::text[])', [addresses]);
+    const { rows } = await pgPool.query('SELECT id, address, supply_block_crawl_head FROM accounts WHERE address = ANY($1::text[])', [addresses]);
     const accountInfos = rows.map(row => {
       return {
         id: row.id,

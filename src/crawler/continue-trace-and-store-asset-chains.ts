@@ -37,6 +37,7 @@ export const getMintBlock = async (pgClient: any, nft_id: number): Promise<any> 
 // Get the existing supply blocks from the database and continue crawling from the
 // latest known block to find new supply blocks.
 export const continueTraceAndStoreAssetChains = async (bananode: any, pgPool: any): Promise<IStatusReturn<void>> => {
+  console.log('continueTraceAndStoreAssetChains...');
   const errorReturns: IErrorReturn[] = [];
   const crawlAt = new Date();
 
@@ -44,6 +45,7 @@ export const continueTraceAndStoreAssetChains = async (bananode: any, pgPool: an
     // TODO: Set batch size for postgresql request
     const dbNFTsStatusReturn: IStatusReturn<IDbNFT[]> = await getNFTs(pgPool);
     if (dbNFTsStatusReturn.status === "error") {
+      console.error(`error getting NFTs`);
       return dbNFTsStatusReturn;
     }
     const dbNFTs: IDbNFT[] = dbNFTsStatusReturn.value;
@@ -56,6 +58,7 @@ export const continueTraceAndStoreAssetChains = async (bananode: any, pgPool: an
         if (supplyBlockDbStatusReturn.status === "error") {
           return supplyBlockDbStatusReturn;
         } else if (!supplyBlockDbStatusReturn.value) {
+          console.error(`Couldn't find issuer address for supply_block with id: ${supplyBlockId}`);
           return {
             status: "error",
             error_type: "RecordMissing",
@@ -65,6 +68,7 @@ export const continueTraceAndStoreAssetChains = async (bananode: any, pgPool: an
         const issuerAddress: TAccount = supplyBlockDbStatusReturn.value;
         const mintBlock = await getMintBlock(pgPool, dbNFT.id);
         await mainMutexManager.runExclusive(mintBlock.block_hash, async () => {
+          console.log(`--- RUN EXCLUSIVE MINT BLOCK HASH: ${mintBlock.block_hash} ---`);
           await continueTraceAssetChain(pgPool, bananode, crawlAt, issuerAddress, dbNFT, mintBlock.block_hash);
         });
 
@@ -90,6 +94,7 @@ export const continueTraceAndStoreAssetChains = async (bananode: any, pgPool: an
     errorReturns.push(errorReturn);
     return errorReturn;
   } finally {
+    console.log('continueTraceAndStoreAssetChains!');
     // TODO: log errors
     // logErrorReturnsToFile(errorReturns);
   }
@@ -98,15 +103,18 @@ export const continueTraceAndStoreAssetChains = async (bananode: any, pgPool: an
 const getSupplyBlockIssuerAddress = async (pgPool: any, supply_block_id: number): Promise<IStatusReturn<TAccount>> => {
   try {
     const query = `
-      SELECT 
+      SELECT
+        id,
         issuer_address
-      FROM 
+      FROM
         supply_blocks
       WHERE supply_blocks.id = $1
       LIMIT 1;
     `;
-    const { rows } = await pgPool.query(query, [supply_block_id]);
+    const queryResult = await pgPool.query(query, [supply_block_id]);
+    const { rows } = queryResult;
     const row = rows[0];
+    console.log(`queryResult: ${JSON.stringify(queryResult)}`);
     return { status: "ok", value: row.issuer_address as TAccount };
   } catch(error) {
     return { status: "error", error_type: "DatabaseError", message: error.message };
@@ -116,13 +124,12 @@ const getSupplyBlockIssuerAddress = async (pgPool: any, supply_block_id: number)
 const getNFTs = async (pgPool: any): Promise<IStatusReturn<IDbNFT[]>> => {
   try {
     const query = {
-      text: 'SELECT id, supply_block_id, mint_block_hash, asset_representative FROM nfts',
+      text: 'SELECT id, supply_block_id, asset_representative FROM nfts',
     };
     const result = await pgPool.query(query);
     const dbNFTs = result.rows.map(row => ({
       id: row.id,
       supply_block_id: row.supply_block_id,
-      mint_block_hash: row.mint_block_hash,
       asset_representative: row.asset_representative
     }));
     return { status: 'ok', value: dbNFTs };

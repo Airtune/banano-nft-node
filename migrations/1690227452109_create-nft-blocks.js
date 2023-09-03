@@ -13,14 +13,14 @@ exports.up = (pgm) => {
     state: { type: 'string', notNull: true }, // TAssetState
     type: { type: 'string', notNull: true }, // TAssetBlockType: `${block_subtype}#${metaprotocol_type}` e.g. 'send#asset'
     account_id: { type: 'integer', notNull: true, references: 'accounts' },
-    account_address: { type: 'varchar(64)', notNull: true },
+    account_address: { type: 'varchar(65)', notNull: true },
     owner_id: { type: 'integer', notNull: true, references: 'accounts' },
-    owner_address: { type: 'varchar(64)', notNull: true },
-    block_account: { type: 'varchar(64)', notNull: true },
-    block_hash: { type: 'varchar(64)', notNull: true }, // TBlockHash
-    block_link: { type: 'varchar(64)', notNull: true }, // TBlockHash
+    owner_address: { type: 'varchar(65)', notNull: true },
+    block_account: { type: 'varchar(65)', notNull: true },
+    block_hash: { type: 'varchar(65)', notNull: true }, // TBlockHash
+    block_link: { type: 'varchar(65)', notNull: true }, // TBlockHash
     block_height: { type: 'integer', notNull: true },
-    block_representative: { type: 'varchar(64)', notNull: true }, // TAccount
+    block_representative: { type: 'varchar(65)', notNull: true }, // TAccount
     block_amount: { type: 'string', notNull: true }, // raw amount
   });
 
@@ -30,10 +30,14 @@ exports.up = (pgm) => {
   pgm.addConstraint('nft_blocks', 'unique_nft_id_nft_block_height', {
     unique: ['nft_id', 'nft_block_height'],
   });
+  pgm.addConstraint('nft_blocks', 'unique_nft_hash_state', {
+    unique: ['block_hash', 'state'],
+  });
 };
 
 exports.down = (pgm) => {
   // Drop the constraint and indices.
+  pgm.dropConstraint('nft_blocks', 'unique_nft_hash_state', { ifExists: true });
   pgm.dropConstraint('nft_blocks', 'unique_nft_id_nft_block_height', { ifExists: true });
   pgm.dropIndex('nft_blocks', 'nft_block_parent_id', { ifExists: true });
   pgm.dropIndex('nft_blocks', 'account_id', { ifExists: true });
