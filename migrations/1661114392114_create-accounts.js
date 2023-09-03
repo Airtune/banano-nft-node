@@ -5,15 +5,19 @@ exports.shorthands = undefined;
 exports.up = pgm => {
   pgm.createTable('accounts', {
     id: 'id',
-    address:    { type: 'string', notNull: true },
     created_at: { type: 'timestamp', notNull: true, default: pgm.func('current_timestamp') },
     updated_at: { type: 'timestamp', notNull: true, default: pgm.func('current_timestamp') },
-    latest_supply_block_crawl_at: { type: 'timestamp',  notNull: false },
-    latest_supply_block_height:   { type: 'integer',    notNull: false },
-    latest_checked_supply_height: { type: 'integer',    notNull: false },
-    latest_checked_supply_head:   { type: 'string',     notNull: false },
+
+    address:    { type: 'varchar(65)', notNull: true },
+    is_nft_issuer: { type: 'boolean', notNull: true, default: false },
+
+    // Current head of the SupplyBlocksCrawler.
+    supply_block_crawl_at:     { type: 'timestamp', notNull: false },
+    supply_block_crawl_height: { type: 'integer',   notNull: false },
+    supply_block_crawl_head:   { type: 'varchar(65)',    notNull: false },
   });
 
+  // Create index on the lower-case of address.
   pgm.createIndex('accounts', 'lower(address)', { unique: true });
 };
 
