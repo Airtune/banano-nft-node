@@ -55,10 +55,11 @@ DATABASE_URL=postgres://user:password@localhost:5432 npm run migrate up
 ```
 
 
-## 4) Set NODE_RPC_URL
+## 4) Create `.env`
 
-Set NODE_RPC_URL in /src/constants.ts to a Bananode RPC url.
+Copy and rename `.env_example` to `.env`.
 
+Set PGPASSWORD and BANANODE_RPC_URL.
 
 # Bootstrap NFT ledger
 
