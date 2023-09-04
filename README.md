@@ -101,7 +101,7 @@ pm2 start --name bananonftnode "npm start"
 `curl -X GET https://cwispy.app/nftnode/issuer/ban_1bdaynbz85gw3tzzqh991kjegcetsjakjjg7wefee8r9jciiihk3gy76fpim/supply_blocks`
 
 
-## Get supply blocks (collections) created by issuer address
+## Get NFTs minted from supply block
 
 `curl -X GET https://cwispy.app/nftnode/supply_block/035F30B48459AF8EC086E7E6194A05940189E03BA5ACE6DB8B5CE22F3DE00A67/nfts`
 
