@@ -107,7 +107,3 @@ pm2 start --name bananonftnode "npm start"
 
 ## Get history for NFT from asset_representative
 `curl -X GET https://cwispy.app/nftnode/nft/ban_3ra3j9abpxidodetmwbe3sc5dsbn7mekh9duu7j4wnk7aznwxezy7e3g6dne/history`
-
-# Excalidraw Entity Relation Diagram
-
-https://excalidraw.com/#json=Uw-HN-N6_DNt1pC4Q7-dj,_qQj_2660o7Dx6Zq_67FjQ
