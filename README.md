@@ -101,13 +101,9 @@ pm2 start --name bananonftnode "npm start"
 `curl -X GET https://cwispy.app/nft_api/issuer/ban_1bdaynbz85gw3tzzqh991kjegcetsjakjjg7wefee8r9jciiihk3gy76fpim/supply_blocks`
 
 
-## Get supply blocks (collections) created by issuer address
+## Get NFTs minted from supply block
 
 `curl -X GET https://cwispy.app/nft_api/supply_block/035F30B48459AF8EC086E7E6194A05940189E03BA5ACE6DB8B5CE22F3DE00A67/nfts`
 
 ## Get history for NFT from asset_representative
 `curl -X GET https://cwispy.app/nft_api/nft/ban_3ra3j9abpxidodetmwbe3sc5dsbn7mekh9duu7j4wnk7aznwxezy7e3g6dne/history`
-
-# Excalidraw Entity Relation Diagram
-
-https://excalidraw.com/#json=Uw-HN-N6_DNt1pC4Q7-dj,_qQj_2660o7Dx6Zq_67FjQ
