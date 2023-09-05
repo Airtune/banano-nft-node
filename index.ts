@@ -109,7 +109,7 @@ app.get('/pending_state_nfts_for_account', async (req, res) => {
 */
 
 // Get all of the nfts owned by an address
-app.get('/nftnode/owner/:address/nfts', async (req, res) => {
+app.get('/nft_api/owner/:address/nfts', async (req, res) => {
   await catchAndRespondWithError(res, async () => {
     const owner_address: TAccount = req.params.address;
     // TODO: Validate owner_address
@@ -167,7 +167,7 @@ app.get('/nftnode/owner/:address/nfts', async (req, res) => {
 });
 
 // Get all of the supply_blocks from an issuer address
-app.get('/nftnode/issuer/:address/supply_blocks', async (req, res) => {
+app.get('/nft_api/issuer/:address/supply_blocks', async (req, res) => {
   await catchAndRespondWithError(res, async () => {
     const issuer_address: TAccount = req.params.address;
     // TODO: Validate issuer_address
@@ -212,7 +212,7 @@ app.get('/nftnode/issuer/:address/supply_blocks', async (req, res) => {
 });
 
 // Get all of the nfts minted from a supply_block_hash
-app.get('/nftnode/supply_block/:supply_block_hash/nfts', async (req, res) => {
+app.get('/nft_api/supply_block/:supply_block_hash/nfts', async (req, res) => {
   await catchAndRespondWithError(res, async () => {
     const supply_block_hash: TBlockHash = req.params.supply_block_hash;
     // TODO: Validate supply_block_hash is an upper case hex string of correct length
@@ -269,7 +269,7 @@ app.get('/nftnode/supply_block/:supply_block_hash/nfts', async (req, res) => {
 });
 
 // Get the transaction history for an nft
-app.get('/nftnode/nft/:asset_representative/history', async (req, res) => {
+app.get('/nft_api/nft/:asset_representative/history', async (req, res) => {
   await catchAndRespondWithError(res, async () => {
     const asset_representative: TAccount = req.params.asset_representative;
     // TODO: Validate asset_representative
