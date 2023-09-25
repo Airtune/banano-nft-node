@@ -38,13 +38,13 @@ export const createNFT = async (pgPool: any, mintBlock: INanoBlock, mintNumber: 
     
     // Update mint_crawl_head for mints crawler
     // TODO: Figure out why uncommenting this line + 'npm start' on a clean setup only yields 1 supply_block
-    console.log(`    ---updateSupplyBlockNewMint...---    `);
+    // console.log(`    ---updateSupplyBlockNewMint...---    `);
     await updateSupplyBlockNewMint(pgPool, supply_block_id, crawl_at, mint_block_height, mintBlock.hash, frontier.state === 'burned');
-    console.log(`    ---updateSupplyBlockNewMint!---    `);
+    // console.log(`    ---updateSupplyBlockNewMint!---    `);
     // Lock supply_blocks row
     await pgClient.query(`SELECT * FROM supply_blocks WHERE id = $1 FOR UPDATE LIMIT 1;`, [supply_block_id]);
 
-    console.log(`INSERT INTO nfts. mintNumber: ${mintNumber}, asset_crawl_block_height: ${asset_crawl_block_height}`);
+    // console.log(`INSERT INTO nfts. mintNumber: ${mintNumber}, asset_crawl_block_height: ${asset_crawl_block_height}`);
     const assetBlockRes = await pgClient.query(
       `INSERT INTO nfts(
         mint_number,
@@ -84,7 +84,7 @@ export const createNFT = async (pgPool: any, mintBlock: INanoBlock, mintNumber: 
         owner_id = await findOrCreateAccount(pgPool, assetBlock.owner, null, null, null, false);
       }
 
-      console.log(`INSERT INTO nft_blocks`);
+      // console.log(`INSERT INTO nft_blocks`);
       const insertNftBlockRes = await pgClient.query(
         `INSERT INTO nft_blocks(
           nft_id,
@@ -128,11 +128,11 @@ export const createNFT = async (pgPool: any, mintBlock: INanoBlock, mintNumber: 
     await pgClient.query('COMMIT;');
   } catch (error) {
     try {
-      console.log(`createNFT ROLLBACK`);
+      // console.log(`createNFT ROLLBACK`);
       console.error(error);
       await pgClient.query('ROLLBACK;');
     } catch (error) {
-      console.log('createNFT ROLLBACK ERROR');
+      // console.log('createNFT ROLLBACK ERROR');
       throw(error);
     }
     throw(error);
@@ -167,13 +167,13 @@ export const updateNFT = async (pgPool: any, nft_id: number, crawl_at: Date, cra
       if (previous_nft_block_hash === assetBlockDb.block_hash) {
         old_frontier_block_reached = true;
         // TODO: remove log
-        console.log(`updateNFT: old_frontier_block_reached i: ${i}`);
+        // console.log(`updateNFT: old_frontier_block_reached i: ${i}`);
         continue;
       }
       // Only proccess assetBlock after current frontier nft_block
       if (!old_frontier_block_reached) {
         // TODO: remove log
-        console.log(`updateNFT: !old_frontier_block_reached i: ${i}`);
+        // console.log(`updateNFT: !old_frontier_block_reached i: ${i}`);
         continue;
       }
       new_frontier_block = assetBlockDb;
@@ -220,11 +220,11 @@ export const updateNFT = async (pgPool: any, nft_id: number, crawl_at: Date, cra
     await pgClient.query('COMMIT;');
   } catch (error) {
     try {
-      console.log(`updateNFT ROLLBACK`);
+      // console.log(`updateNFT ROLLBACK`);
       console.error(error);
       await pgClient.query('ROLLBACK;');
     } catch (error) {
-      console.log('updateNFT ROLLBACK ERROR');
+      // console.log('updateNFT ROLLBACK ERROR');
       throw(error);
     }
     throw(error);

@@ -6,7 +6,7 @@ import { MINT_BLOCK_VERSION } from "../constants";
 import { getBlock } from "banano-nft-crawler/dist/lib/get-block";
 
 export const continue_trace_mint_blocks = async(bananode: NanoNode, issuer: TAccount, supplyBlockHeight: bigint, supplyBlockHash: TBlockHash, mint_crawl_head: TBlockHash, mintBlockCount: bigint, maxSupply: bigint, metadataRepresentative: TAccount) => {
-  console.log('continue_trace_mint_blocks...');
+  // console.log('continue_trace_mint_blocks...');
   return await retry_on_error(async () => {
     const mintBlocksCrawler: MintBlocksCrawler = new MintBlocksCrawler(issuer, supplyBlockHash);
     // TODO: Refactor inconsistency between assetCrawler and mintBlocksCrawler:
@@ -40,10 +40,10 @@ export const continue_trace_mint_blocks = async(bananode: NanoNode, issuer: TAcc
     const mintBlocks = mintBlocksCrawler.mintBlocks;
     
     if (Array.isArray(mintBlocks) && mintBlocks.length >= 1) {
-      console.log(`continue_trace_mint_blocks!: ${mintBlocks.length}, ${mintBlocks ? mintBlocks[mintBlocks.length-1].height : 'none'}`);
+      // console.log(`continue_trace_mint_blocks!: ${mintBlocks.length}, ${mintBlocks ? mintBlocks[mintBlocks.length-1].height : 'none'}`);
       return mintBlocks;
     } else {
-      console.log(`no new mint blocks for: ${supplyBlockHash}`);
+      // console.log(`no new mint blocks for: ${supplyBlockHash}`);
       return [];
     }
   }).catch((error) => { throw(error); });

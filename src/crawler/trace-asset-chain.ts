@@ -9,7 +9,7 @@ import { NanoNode } from 'nano-account-crawler/dist/nano-node';
 
 // Get the asset frontier block
 export const traceAssetChain = async (bananode: any, issuer: TAccount, mintBlockHash: TBlockHash): Promise<IStatusReturn<AssetCrawler>> => {
-  console.log(`/traceAssetChain\nissuer: ${issuer}\nmint_block_hash: ${mintBlockHash}`);
+  // console.log(`/traceAssetChain\nissuer: ${issuer}\nmint_block_hash: ${mintBlockHash}`);
   let mintBlockStatusReturn: IStatusReturn<INanoBlock | undefined>;
   try {
     mintBlockStatusReturn = await getBlock(bananode, issuer, mintBlockHash);

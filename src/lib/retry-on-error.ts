@@ -16,7 +16,7 @@ export async function retry_on_error(fn, max_retries: number = DEFAULT_MAX_RETRI
       if (retries >= max_retries) {
         throw error;
       }
-      console.log(`retrying after getting error: ${error.toString()}`);
+      // console.log(`retrying after getting error: ${error.toString()}`);
       await delay_between_retries();
     }
   }

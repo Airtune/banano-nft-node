@@ -27,7 +27,7 @@ interface IAccountSupplyBlockInfo {
 // from the latest known block to find new supply blocks.
 // Note that it can return { status: "ok", value: [...] } where the value is a list of errors.
 export const continueTraceAndStoreNewlySuppliedAssets = async (bananode: NanoNode, pgPool: any): Promise<IStatusReturn<IErrorReturn[]>> => {
-  console.log('continueTraceAndStoreNewlySuppliedAssets...');
+  // console.log('continueTraceAndStoreNewlySuppliedAssets...');
   const errorReturns: IErrorReturn[] = [];
 
   try {
@@ -42,10 +42,10 @@ export const continueTraceAndStoreNewlySuppliedAssets = async (bananode: NanoNod
     for (let j = 0; j < issuers.length; j++) {
       const issuerAddress = issuers[j].toLowerCase() as TAccount;
       if (issuerInfos.findIndex((_issuerInfo) => { return _issuerInfo.address == issuerAddress }) === -1) {
-        console.log(JSON.stringify(issuerInfos));
-        console.log(`CTASTNSA: issuer not in db: ${issuerAddress}`);
+        // console.log(JSON.stringify(issuerInfos));
+        // console.log(`CTASTNSA: issuer not in db: ${issuerAddress}`);
         await bootstrap_issuer(bananode, pgPool, issuerAddress, errorReturns).catch((error) => {
-          console.log(`CTASTNSA: error bootstrapping issuer: ${issuerAddress}`);
+          // console.log(`CTASTNSA: error bootstrapping issuer: ${issuerAddress}`);
           errorReturns.push({
             status: "error",
             error_type: "UnexpectedError",
@@ -65,7 +65,7 @@ export const continueTraceAndStoreNewlySuppliedAssets = async (bananode: NanoNod
       await mainMutexManager.runExclusive(issuerAddress, continueSuppliedAssetTrace);
     }
 
-    console.log('continueTraceAndStoreNewlySuppliedAssets!');
+    // console.log('continueTraceAndStoreNewlySuppliedAssets!');
     return { status: "ok", value: errorReturns };
   } catch (error) {
     const errorReturn: IErrorReturn = {
@@ -87,7 +87,7 @@ const curryContinueSuppliedAssetTrace = (crawlAt: Date, bananode: NanoNode, pgPo
       const accountSupplyBlockInfoStatusReturn = await getAccountSupplyBlockInfo(pgPool, issuerId);
       if (accountSupplyBlockInfoStatusReturn.status === "error") {
         errorReturns.push(accountSupplyBlockInfoStatusReturn);
-        console.log(`CTASTNSA: Skipping new bootstrap for: ${issuerAddress}. ${accountSupplyBlockInfoStatusReturn.error_type}: ${accountSupplyBlockInfoStatusReturn.message}`);
+        // console.log(`CTASTNSA: Skipping new bootstrap for: ${issuerAddress}. ${accountSupplyBlockInfoStatusReturn.error_type}: ${accountSupplyBlockInfoStatusReturn.message}`);
         return;
       }
 
@@ -108,7 +108,7 @@ const curryContinueSuppliedAssetTrace = (crawlAt: Date, bananode: NanoNode, pgPo
         if (skip_supply_block_i === i) { continue; }
         const supplyBlock = supplyBlocks[i];
         const maxSupply = supplyBlock.max_supply;
-        console.log(`CTASTNSA: bootstrapping new supply block: ${supplyBlock.supply_block_hash}, ${supplyBlock.metadata_representative}`);
+        // console.log(`CTASTNSA: bootstrapping new supply block: ${supplyBlock.supply_block_hash}, ${supplyBlock.metadata_representative}`);
         // TODO: Rewrite to return IStatusReturn
         // TODO: continue loop if there's errors
         const mintBlocks: INanoBlock[] = await bootstrap_mint_blocks_from_supply_block(bananode, issuerAddress, supplyBlock.supply_block_hash);
@@ -118,7 +118,7 @@ const curryContinueSuppliedAssetTrace = (crawlAt: Date, bananode: NanoNode, pgPo
         for (let j = 0; j < mintBlocks.length; j++) {
           if (skip_supply_block_i === i) { continue; }
           const mintBlock = mintBlocks[j];
-          console.log(`CTASTNSA: bootstrapping new mint block: ${mintBlock.hash}`);
+          // console.log(`CTASTNSA: bootstrapping new mint block: ${mintBlock.hash}`);
           await mainMutexManager.runExclusive(mintBlock.hash, async () => {
             const assetHistoryStatusReturn = await bootstrap_asset_history_from_mint_block(bananode, issuerAddress, mintBlock);
             if (assetHistoryStatusReturn.status === "error") {
@@ -142,16 +142,16 @@ const curryContinueSuppliedAssetTrace = (crawlAt: Date, bananode: NanoNode, pgPo
               mintNumber += 1;
               await createNFT(pgPool, mintBlock, mintNumber, supply_block_id, supplyBlock.supply_block_hash, asset_chain, asset_chain_height, asset_crawler_block_head, asset_crawler_block_height);
             }
-            console.log(`CTASTNSA: Finished bootstrapping new asset from mint block. Frontier: ${asset_chain[asset_chain.length - 1].state} ${asset_chain[asset_chain.length - 1].block_hash}`);
+            // console.log(`CTASTNSA: Finished bootstrapping new asset from mint block. Frontier: ${asset_chain[asset_chain.length - 1].state} ${asset_chain[asset_chain.length - 1].block_hash}`);
           });
           await delay_between_passive_asset_checks();
         }
 
-        console.log(`CTASTNSA: Finished bootstrapping supply block: ${supplyBlock.supply_block_hash}, representative: ${supplyBlock.metadata_representative}`);
+        // console.log(`CTASTNSA: Finished bootstrapping supply block: ${supplyBlock.supply_block_hash}, representative: ${supplyBlock.metadata_representative}`);
         await delay_between_supply_blocks();
       }
 
-      console.log(`CTASTNSA: Finished bootstrapping newly supplied NFTs for issuer: ${issuerAddress}`);
+      // console.log(`CTASTNSA: Finished bootstrapping newly supplied NFTs for issuer: ${issuerAddress}`);
       await delay_between_issuers();
     } catch (error) {
       errorReturns.push({

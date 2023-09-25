@@ -32,7 +32,7 @@ interface INft {
 // to find new mint blocks.
 // Note that it can return { status: "ok", value: [...] } where the value is a list of errors.
 export const continueTraceAndStoreNewlyMintedAssets = async (bananode: NanoNode, pgPool: any): Promise<IStatusReturn<IErrorReturn[]>> => {
-  console.log('continueTraceAndStoreNewlyMintedAssets...');
+  // console.log('continueTraceAndStoreNewlyMintedAssets...');
   const errorReturns: IErrorReturn[] = [];
 
   try {
@@ -57,7 +57,7 @@ export const continueTraceAndStoreNewlyMintedAssets = async (bananode: NanoNode,
       message: `${error}`
     };
     errorReturns.push(errorReturn);
-    console.log('continueTraceAndStoreNewlyMintedAssets!');
+    // console.log('continueTraceAndStoreNewlyMintedAssets!');
     return { status: "ok", value: errorReturns };
   }
 }
@@ -76,9 +76,9 @@ const curryContinueMintedAssetTrace = (bananode: NanoNode, pgPool: any, supplyBl
 
       // TODO: Rewrite to return IStatusReturn
       // TODO: continue loop if there's errors
-      console.log("\n\n    awaiting continue_trace_mint_blocks...\n\n");
+      // console.log("\n\n    awaiting continue_trace_mint_blocks...\n\n");
       const mintBlocks: INanoBlock[] = await continue_trace_mint_blocks(bananode, issuerAddress, BigInt(supplyBlock.supply_block_height), supplyBlock.supply_block_hash, mint_crawl_head, BigInt(mint_count), maxSupply, supplyBlock.metadata_representative).catch((error) => { throw(error); });
-      console.log("\n\n    awaited continue_trace_mint_blocks!n\n");
+      // console.log("\n\n    awaited continue_trace_mint_blocks!n\n");
       let supply_block_id: number = supplyBlock.id;
 
       if (!frontierNFT && !frontierNFTBlock) {
@@ -89,7 +89,7 @@ const curryContinueMintedAssetTrace = (bananode: NanoNode, pgPool: any, supplyBl
 
       let crawlHeadFound = false;
       let extraMintCount = 0;
-      console.log(`NMAN: mintBlocks.length: ${mintBlocks.length}`);
+      // console.log(`NMAN: mintBlocks.length: ${mintBlocks.length}`);
       for (let j = 0; j < mintBlocks.length; j++) {
         //console.log("\n\n    -- searching for head mint block --\n\n");
         const mintBlock = mintBlocks[j];
@@ -97,14 +97,14 @@ const curryContinueMintedAssetTrace = (bananode: NanoNode, pgPool: any, supplyBl
         //if (!crawlHeadFound) {
         //  if (frontierNFTBlock.block_hash === mintBlock.hash) {
         //    crawlHeadFound = true;
-        //    console.log(`.... found crawl head!: ${mintBlock.hash}`);
+        //    // console.log(`.... found crawl head!: ${mintBlock.hash}`);
         //  } else {
-        //    console.log(`.... didn't find crawl head yet: ${mintBlock.hash}`);
+        //    // console.log(`.... didn't find crawl head yet: ${mintBlock.hash}`);
         //  }
         //  continue;
         //  //throw Error(`Unexpected turn of events. Why wasn't the first mint block the mint crawl head NFT? Was it because the crawl head hash was ahead of the latest mint head?`)
         //}
-        console.log(`NMA: bootstrapping newly minted block: ${mintBlock.hash}`);
+        // console.log(`NMA: bootstrapping newly minted block: ${mintBlock.hash}`);
         extraMintCount += 1;
         await mainMutexManager.runExclusive(mintBlock.hash, async () => {
           const assetHistoryStatusReturn = await bootstrap_asset_history_from_mint_block(bananode, issuerAddress, mintBlock);
@@ -122,12 +122,12 @@ const curryContinueMintedAssetTrace = (bananode: NanoNode, pgPool: any, supplyBl
           const mintNumber = frontierNFT.mint_number + extraMintCount;
           await createNFT(pgPool, mintBlock, mintNumber, supply_block_id, supplyBlock.supply_block_hash, asset_chain, asset_chain_height, asset_crawler_block_head, asset_crawler_block_height);
 
-          console.log(`NMA: Finished bootstrapping newly minted asset from mint block. Frontier: ${asset_chain[asset_chain.length-1].state} ${asset_chain[asset_chain.length-1].block_hash}`);
+          // console.log(`NMA: Finished bootstrapping newly minted asset from mint block. Frontier: ${asset_chain[asset_chain.length-1].state} ${asset_chain[asset_chain.length-1].block_hash}`);
         });
         await delay_between_mint_blocks();
       }
 
-      console.log(`NMA: Finished bootstrapping supply block: ${supplyBlock.supply_block_hash}, representative: ${supplyBlock.metadata_representative}`);
+      // console.log(`NMA: Finished bootstrapping supply block: ${supplyBlock.supply_block_hash}, representative: ${supplyBlock.metadata_representative}`);
       await delay_between_supply_blocks();
     } catch(error) {
       const errorReturn: IErrorReturn = {

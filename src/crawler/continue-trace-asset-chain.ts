@@ -28,7 +28,7 @@ const get_frontier_nft_blocks = async (pgPool: any, dbNFT: IDbNFT): Promise<ISta
 };
 
 export const continueTraceAssetChain = async (pgPool: any, bananode: any, crawlAt: Date, issuerAddress: TAccount, dbNFT: IDbNFT, mint_block_hash: TBlockHash): Promise<IStatusReturn<void>> => {
-  console.log('continueTraceAssetChain...');
+  // console.log('continueTraceAssetChain...');
   try {
     const mintBlockStatusReturn = await getBlock(bananode, issuerAddress, mint_block_hash);
     if (mintBlockStatusReturn.status === "error") {
@@ -43,13 +43,13 @@ export const continueTraceAssetChain = async (pgPool: any, bananode: any, crawlA
     const frontier_nft_blocks_status: IStatusReturn<any[]> = await get_frontier_nft_blocks(pgPool, dbNFT);
     if (frontier_nft_blocks_status.status === "error") {
       // TODO: remove log
-      console.log(`error getting frontier_nft_blocks`);
+      // console.log(`error getting frontier_nft_blocks`);
       return frontier_nft_blocks_status;
     }
     const frontier_nft_blocks: any[] = frontier_nft_blocks_status.value;
     // TODO: remove log
-    console.log(`fetched ${frontier_nft_blocks.length} frontier blocks:`);
-    console.log(JSON.stringify(frontier_nft_blocks));
+    // console.log(`fetched ${frontier_nft_blocks.length} frontier blocks:`);
+    // console.log(JSON.stringify(frontier_nft_blocks));
     // Convert frontier_nft_blocks -> IAssetBlock[]
     const cachedAssetChain: IAssetBlock[] = frontier_nft_blocks.map((nft_block: any) => {
       return {
@@ -85,7 +85,7 @@ export const continueTraceAssetChain = async (pgPool: any, bananode: any, crawlA
     const crawl_block_height = assetCrawler.headHeight;
     const new_asset_chain_frontiers = assetCrawler.assetChain;
     await updateNFT(pgPool, dbNFT.id, crawlAt, assetCrawler.head, crawl_block_height, new_asset_chain_frontiers);
-    console.log('continueTraceAssetChain!');
+    // console.log('continueTraceAssetChain!');
   } catch (error) {
     // TODO: remove log
     console.error(`continueTraceAssetChain error`);

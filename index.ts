@@ -46,7 +46,7 @@ const catchAndRespondWithError = async (res, fn) => {
       stack: error.stack || error.stacktrace
     }));
   }
-  console.log('\n');
+  // console.log('\n');
 }
 
 // DB data
@@ -328,7 +328,7 @@ app.get('/get_mint_blocks', async (req, res) => {
     const issuer: TAccount = req.query['issuer'] as TAccount;
     const supplyBlockHash: TBlockHash = req.query['supply_block_hash'] as TBlockHash;
 
-    console.log(`/supply_blocks\nissuer: ${issuer}\n`);
+    // console.log(`/supply_blocks\nissuer: ${issuer}\n`);
     const mintBlocksCrawler = new MintBlocksCrawler(issuer, supplyBlockHash)
     await mintBlocksCrawler.crawl(bananode).catch((error) => { throw(error); } );
 
@@ -376,32 +376,32 @@ app.get('/get_asset_frontier', async (req, res) => {
 */
 
 const catchUndiscoveredAssetUpdatesLoop = async () => {
-  console.log("CUASUL: catchUndiscoveredAssetUpdatesLoop...");
+  // console.log("CUASUL: catchUndiscoveredAssetUpdatesLoop...");
   try {
     const assetTraceStatusReturn = await continueTraceAndStoreAssetChains(bananode, pgPool);
     if (assetTraceStatusReturn.status === "error") {
-      console.log(`IErrorReturn: ${assetTraceStatusReturn.error_type}: ${assetTraceStatusReturn.message}`);
+      // console.log(`IErrorReturn: ${assetTraceStatusReturn.error_type}: ${assetTraceStatusReturn.message}`);
     }
   } catch (error) {
-    console.log(`assetTraceStatusReturn error:`);
+    // console.log(`assetTraceStatusReturn error:`);
     console.error(error);
   }
   
-  console.log("CUASUL: catchUndiscoveredAssetUpdatesLoop!"); 
+  // console.log("CUASUL: catchUndiscoveredAssetUpdatesLoop!"); 
 
   setTimeout(catchUndiscoveredAssetUpdatesLoop, ms_undiscovered_crawls);
 }
 
 const catchUndiscoveredMintUpdatesLoop = async () => {
-  console.log("catchUndiscoveredMintUpdatesLoop...");
+  // console.log("catchUndiscoveredMintUpdatesLoop...");
 
   try {
     const supplyTraceStatusReturn = await continueTraceAndStoreNewlySuppliedAssets(bananode, pgPool);
     if (supplyTraceStatusReturn.status === "error") {
-      console.log(`IErrorReturn: ${supplyTraceStatusReturn.error_type}: ${supplyTraceStatusReturn.message}`);
+      // console.log(`IErrorReturn: ${supplyTraceStatusReturn.error_type}: ${supplyTraceStatusReturn.message}`);
     }
   } catch (error) {
-    console.log(`supplyTraceStatusReturn error:`);
+    // console.log(`supplyTraceStatusReturn error:`);
     console.error(error);
   }
 
@@ -411,20 +411,20 @@ const catchUndiscoveredMintUpdatesLoop = async () => {
     // TODO: Optimize this by supplying supply blocks from continueTraceAndStoreNewlySuppliedAssets
     const mintTraceStatusReturn = await continueTraceAndStoreNewlyMintedAssets(bananode, pgPool);
     if (mintTraceStatusReturn.status === "error") {
-      console.log(`IErrorReturn: ${mintTraceStatusReturn.error_type}: ${mintTraceStatusReturn.message}`);
+      // console.log(`IErrorReturn: ${mintTraceStatusReturn.error_type}: ${mintTraceStatusReturn.message}`);
     }
   } catch (error) {
-    console.log(`mintTraceStatusReturn error:`);
+    // console.log(`mintTraceStatusReturn error:`);
     console.error(error);
   }
   
-  console.log("catchUndiscoveredMintUpdatesLoop!"); 
+  // console.log("catchUndiscoveredMintUpdatesLoop!"); 
 
   setTimeout(catchUndiscoveredMintUpdatesLoop, ms_undiscovered_crawls);
 };
 
 app.listen(port, async () => {
-  console.log(`Banano Meta Node listening at port ${port}`);
+  // console.log(`Banano Meta Node listening at port ${port}`);
   catchUndiscoveredMintUpdatesLoop();
   catchUndiscoveredAssetUpdatesLoop();
 });

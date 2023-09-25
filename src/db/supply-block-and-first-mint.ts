@@ -62,7 +62,7 @@ export const createSupplyBlockAndFirstMint = async (crawl_at: Date, pgPool: any,
 
     if (typeof (supplyBlockRes) !== 'undefined' && supplyBlockRes.rows[0]) {
       supply_block_id = supplyBlockRes.rows[0]["id"];
-      console.log(`supply_block_id: ${supply_block_id}`);
+      // console.log(`supply_block_id: ${supply_block_id}`);
     }
 
     const mint_number = 1;
@@ -157,18 +157,18 @@ export const createSupplyBlockAndFirstMint = async (crawl_at: Date, pgPool: any,
     await pgClient.query('COMMIT;');
   } catch (error) {
     if (DEBUG) {
-      console.log('createSupplyBlockAndFirstMint ROLLBACK...');
+      // console.log('createSupplyBlockAndFirstMint ROLLBACK...');
     }
     try {
       await pgClient.query('ROLLBACK;');
       // TODO: Block this NFT from being supplied if it keeps failing?
     } catch (error) {
-      console.log('createSupplyBlockAndFirstMint ROLLBACK ERROR');
+      // console.log('createSupplyBlockAndFirstMint ROLLBACK ERROR');
       console.error(error);
       throw (error);
     }
     if (DEBUG) {
-      console.log('createSupplyBlockAndFirstMint ROLLBACK!');
+      // console.log('createSupplyBlockAndFirstMint ROLLBACK!');
       console.error(error);
     }
     throw (error);

@@ -24,7 +24,7 @@ export const updateSupplyBlockNewMint = async (
 
   try {
     await pgPool.query(query, values);
-    console.log(`Updated mint crawl info for supply block with id ${supplyBlockId}`);
+    // console.log(`Updated mint crawl info for supply block with id ${supplyBlockId}`);
   } catch (error) {
     console.error(`\n\nERROR updateSupplyBlockNewMint:`);
     console.error(error);
@@ -50,7 +50,7 @@ export const updateSupplyBlockBurn = async (
 
   try {
     await pgPool.query(query, values);
-    console.log(`Updated burn info for supply block for nft_id ${nft_id}`);
+    // console.log(`Updated burn info for supply block for nft_id ${nft_id}`);
   } catch (error) {
     console.error(`\n\nERROR updateSupplyBlockBurn:`);
     console.error(error);
