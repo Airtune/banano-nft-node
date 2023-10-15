@@ -10,7 +10,7 @@ import { IStatusReturn } from 'nano-account-crawler/dist/status-return-interface
 // Get the asset frontier block
 export const traceAssetFrontier = async (bananode, issuer: TAccount, mintBlockHash: TBlockHash): Promise<IAssetBlock> => {
   // TODO: validate params
-  console.log(`traceAssetFrontier\nissuer: ${issuer}\nmintBlockHash: ${mintBlockHash}`);
+  // console.log(`traceAssetFrontier\nissuer: ${issuer}\nmintBlockHash: ${mintBlockHash}`);
   const mintBlockStatusReturn: IStatusReturn<INanoBlock> = await getBlock(bananode, issuer, mintBlockHash).catch((error) => { throw(error); });
   if (mintBlockStatusReturn.status === "error") {
     throw Error(`${mintBlockStatusReturn.error_type}: ${mintBlockStatusReturn.message}`);

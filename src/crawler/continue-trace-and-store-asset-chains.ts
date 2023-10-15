@@ -37,7 +37,7 @@ export const getMintBlock = async (pgClient: any, nft_id: number): Promise<any> 
 // Get the existing supply blocks from the database and continue crawling from the
 // latest known block to find new supply blocks.
 export const continueTraceAndStoreAssetChains = async (bananode: any, pgPool: any): Promise<IStatusReturn<void>> => {
-  console.log('continueTraceAndStoreAssetChains...');
+  // console.log('continueTraceAndStoreAssetChains...');
   const errorReturns: IErrorReturn[] = [];
   const crawlAt = new Date();
 
@@ -68,7 +68,7 @@ export const continueTraceAndStoreAssetChains = async (bananode: any, pgPool: an
         const issuerAddress: TAccount = supplyBlockDbStatusReturn.value;
         const mintBlock = await getMintBlock(pgPool, dbNFT.id);
         await mainMutexManager.runExclusive(mintBlock.block_hash, async () => {
-          console.log(`--- RUN EXCLUSIVE MINT BLOCK HASH: ${mintBlock.block_hash} ---`);
+          // console.log(`--- RUN EXCLUSIVE MINT BLOCK HASH: ${mintBlock.block_hash} ---`);
           await continueTraceAssetChain(pgPool, bananode, crawlAt, issuerAddress, dbNFT, mintBlock.block_hash);
         });
 
@@ -94,7 +94,7 @@ export const continueTraceAndStoreAssetChains = async (bananode: any, pgPool: an
     errorReturns.push(errorReturn);
     return errorReturn;
   } finally {
-    console.log('continueTraceAndStoreAssetChains!');
+    // console.log('continueTraceAndStoreAssetChains!');
     // TODO: log errors
     // logErrorReturnsToFile(errorReturns);
   }
@@ -114,7 +114,7 @@ const getSupplyBlockIssuerAddress = async (pgPool: any, supply_block_id: number)
     const queryResult = await pgPool.query(query, [supply_block_id]);
     const { rows } = queryResult;
     const row = rows[0];
-    console.log(`queryResult: ${JSON.stringify(queryResult)}`);
+    // console.log(`queryResult: ${JSON.stringify(queryResult)}`);
     return { status: "ok", value: row.issuer_address as TAccount };
   } catch(error) {
     return { status: "error", error_type: "DatabaseError", message: error.message };

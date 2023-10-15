@@ -32,7 +32,7 @@ const testCrawler = async (): Promise<IStatusReturn<AssetCrawler|undefined>> => 
 }
 
 const main = async () => {
-  console.log(`Bootstrapping...`);
+  // console.log(`Bootstrapping...`);
   /*
   const testCrawlerStatusReturn = await testCrawler().catch((error) => { throw(error); });
   if (testCrawlerStatusReturn.status === "error") {
@@ -54,15 +54,15 @@ const main = async () => {
     // Otherwise, return the value as-is
     return value;
   });
-  console.log(jsonString);
+  // console.log(jsonString);
   */
   const nft_count_res = await pgPool.query("SELECT count(id) FROM nfts;").catch((error) => { throw(error); });
   const nft_count = parseInt(nft_count_res.rows[0].count);
   if (typeof nft_count !== 'number' || nft_count === 0) {
-    console.log("startBootstrap...");
+    // console.log("startBootstrap...");
     await bootstrap(bananode, pgPool).catch((error) => { throw(error); });
   } else {
-    console.log(`DB not empty. Bootstrap cancelled.`);
+    // console.log(`DB not empty. Bootstrap cancelled.`);
   }
 }
 
